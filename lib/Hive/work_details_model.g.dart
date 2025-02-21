@@ -8,7 +8,7 @@ part of 'work_details_model.dart';
 
 class WorkDetailsAdapter extends TypeAdapter<WorkDetails> {
   @override
-  final int typeId = 4;
+  final int typeId = 5;
 
   @override
   WorkDetails read(BinaryReader reader) {
@@ -17,42 +17,45 @@ class WorkDetailsAdapter extends TypeAdapter<WorkDetails> {
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
     return WorkDetails(
-      title: fields[0] as String,
-      description: fields[1] as String,
-      department: fields[2] as String,
-      status: fields[3] as String,
-      priority: fields[4] as String,
-      assignedTo: fields[5] as String,
-      startDate: fields[6] as DateTime,
-      deadline: fields[7] as DateTime,
-      progressUpdates: fields[8] as double,
-      uid: fields[9] as String,
+      id: fields[0] as String,
+      title: fields[1] as String,
+      description: fields[2] as String,
+      department: fields[3] as String,
+      status: fields[4] as String,
+      priority: fields[5] as String,
+      progressUpdates: fields[6] as double,
+      startDate: fields[7] as DateTime,
+      deadline: fields[8] as DateTime,
+      assignedTo: fields[9] as String,
+      uid: fields[10] as String,
     );
   }
 
   @override
   void write(BinaryWriter writer, WorkDetails obj) {
     writer
-      ..writeByte(10)
+      ..writeByte(11)
       ..writeByte(0)
-      ..write(obj.title)
+      ..write(obj.id)
       ..writeByte(1)
-      ..write(obj.description)
+      ..write(obj.title)
       ..writeByte(2)
-      ..write(obj.department)
+      ..write(obj.description)
       ..writeByte(3)
-      ..write(obj.status)
+      ..write(obj.department)
       ..writeByte(4)
-      ..write(obj.priority)
+      ..write(obj.status)
       ..writeByte(5)
-      ..write(obj.assignedTo)
+      ..write(obj.priority)
       ..writeByte(6)
-      ..write(obj.startDate)
-      ..writeByte(7)
-      ..write(obj.deadline)
-      ..writeByte(8)
       ..write(obj.progressUpdates)
+      ..writeByte(7)
+      ..write(obj.startDate)
+      ..writeByte(8)
+      ..write(obj.deadline)
       ..writeByte(9)
+      ..write(obj.assignedTo)
+      ..writeByte(10)
       ..write(obj.uid);
   }
 
