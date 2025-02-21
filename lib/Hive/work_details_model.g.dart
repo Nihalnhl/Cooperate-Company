@@ -23,7 +23,7 @@ class WorkDetailsAdapter extends TypeAdapter<WorkDetails> {
       department: fields[3] as String,
       status: fields[4] as String,
       priority: fields[5] as String,
-      progressUpdates: fields[6] as double,
+      progressUpdates: fields[6] as String,
       startDate: fields[7] as DateTime,
       deadline: fields[8] as DateTime,
       assignedTo: fields[9] as String,

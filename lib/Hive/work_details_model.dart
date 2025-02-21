@@ -1,80 +1,86 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:hive/hive.dart';
 
 part 'work_details_model.g.dart';
 
-@HiveType(typeId: 4)
-class WorkDetails extends HiveObject {
+@HiveType(typeId: 5)
+class WorkDetails {
   @HiveField(0)
-  String title;
+  final String id;
 
   @HiveField(1)
-  String description;
+  final String title;
 
   @HiveField(2)
-  String department;
+  final String description;
 
   @HiveField(3)
-  String status;
+  final String department;
 
   @HiveField(4)
-  String priority;
+  final String status;
 
   @HiveField(5)
-  String assignedTo;
+  final String priority;
 
   @HiveField(6)
-  DateTime startDate;
+  final String progressUpdates;
 
   @HiveField(7)
-  DateTime deadline;
+  final DateTime startDate;
 
   @HiveField(8)
-  double progressUpdates;
+  final DateTime deadline;
 
   @HiveField(9)
-  String uid;
+  final String assignedTo;
+
+  @HiveField(10)
+  final String uid;
+
 
   WorkDetails({
+    required this.id,
     required this.title,
     required this.description,
     required this.department,
     required this.status,
     required this.priority,
-    required this.assignedTo,
+    required this.progressUpdates,
     required this.startDate,
     required this.deadline,
-    required this.progressUpdates,
-    required this.uid,
+    required this.assignedTo,
+    required this.uid, String? assignedToUid,
   });
-
-  factory WorkDetails.fromMap(Map<String, dynamic> map) {
-    return WorkDetails(
-      title: map['title'],
-      description: map['description'],
-      department: map['Department'],
-      status: map['Status'],
-      priority: map['Priority'],
-      assignedTo: map['Assignedto'],
-      startDate: (map['StartDate'] as Timestamp).toDate(),
-      deadline: (map['deadline'] as Timestamp).toDate(),
-      progressUpdates: (map['Progressupdates'] as num).toDouble(),
-      uid: map['uid'],
-    );
-  }
 
   Map<String, dynamic> toMap() {
     return {
+      'id': id,
       'title': title,
       'description': description,
-      'Department': department,
-      'Status': status,
-      'Priority': priority,
-      'Assignedto': assignedTo,
-      'StartDate': startDate,
+      'department': department,
+      'status': status,
+      'priority': priority,
+      'progressUpdates': progressUpdates,
+      'startDate': startDate,
       'deadline': deadline,
-      'Progressupdates': progressUpdates,
+      'assignedTo': assignedTo,
       'uid': uid,
     };
+  }
+
+  factory WorkDetails.fromMap(Map<String, dynamic> map) {
+    return WorkDetails(
+      id: map['id'],
+      title: map['title'],
+      description: map['description'],
+      department: map['department'],
+      status: map['status'],
+      priority: map['priority'],
+      progressUpdates: map['progressUpdates'],
+      startDate: map['startDate'].toDate(),
+      deadline: map['deadline'].toDate(),
+      assignedTo: map['assignedTo'],
+      uid: map['uid'],
+    );
   }
 }

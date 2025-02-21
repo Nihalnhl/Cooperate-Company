@@ -64,13 +64,39 @@
               if (result != ConnectivityResult.none) {
                 bool isOnline = await checkInternetConnection();
                 if (isOnline) {
-                 syncOfflineDataToFirestore();
-                  getDataFromFirestore();
+                  await syncPendingDeletions();
+                  await syncOfflineDataToFirestore();
+                  await getDataFromFirestore();
+
+                  if (mounted) {
+                    setState(() {
+
+                    }); // Refresh the page
+                  }
                 }
               }
             });
           }
 
+
+          Future<void> syncPendingDeletions() async {
+            final pendingDeletionsBox = await Hive.openBox<String>('pendingDeletionsBox');
+            final pendingDeletions = pendingDeletionsBox.values.toList();
+
+            for (String leaveRequestId in pendingDeletions) {
+              try {
+                await FirebaseFirestore.instance
+                    .collection('leave_records')
+                    .doc(leaveRequestId)
+                    .delete();
+                await pendingDeletionsBox.delete(leaveRequestId);
+
+                print('Successfully deleted leave request with ID: $leaveRequestId');
+              } catch (error) {
+                print('Failed to delete leave request with ID: $leaveRequestId - $error');
+              }
+            }
+          }
           void getData() async {
             final User? user = auth.currentUser;
             final uid = user?.uid;
@@ -89,7 +115,7 @@
                     setState(() {
                       role = data!['role'];
                       Name = data["name"];
-                      storeUserRole(role!); // Store role in Hive
+                      storeUserRole(role!);
                       if (role == "employee") {
                         EmployeeQuery(uid);
                       } else if (role == "teamlead") {
@@ -104,7 +130,7 @@
                 print('Error fetching user data: $error');
               }
             } else {
-              role = await getUserRole(); // Fetch role from Hive
+              role = await getUserRole();
               loadOfflineData();
             }
           }
@@ -121,7 +147,6 @@
 
               for (var leaveRequest in offlineRequests) {
                 try {
-                  // Sync the leave request to Firestore
                   await FirebaseFirestore.instance
                       .collection('leave_records')
                       .doc(leaveRequest.Id)
@@ -138,22 +163,21 @@
                     'user_name': leaveRequest.userName,
                   }, SetOptions(merge: true));
 
-                  // If syncing succeeds, remove the entry from Hive
                   await leaveRequestBox.delete(leaveRequest.Id);
                 } catch (error) {
                   print('Error syncing leave request with ID ${leaveRequest.Id}: $error');
                 }
               }
-
               print('Offline data synced and cleared from Hive.');
+              if (mounted) {
+                setState(() {
+                  getData();
+                });
+              }
             } catch (error) {
               print('Error during sync operation: $error');
             }
           }
-
-
-
-
 
           Future<void> getDataFromFirestore() async {
             final User? user = auth.currentUser;
@@ -192,7 +216,6 @@
           Future<void> clearBox() async {
             const boxName = 'leaveRequestsBox';
 
-
             var box = Hive.isBoxOpen(boxName)
                 ? Hive.box(boxName)
                 : await Hive.openBox(boxName);
@@ -200,9 +223,6 @@
             await box.clear();
             print('Box cleared!');
           }
-
-
-
 
           void loadOfflineData() async {
             try {
@@ -222,7 +242,7 @@
                     'creator_role': leaveRequest.creatorRole,
                     'user_id': leaveRequest.userId,
                     'user_name': leaveRequest.userName,
-                    'source': 'offline', // Indicate this is offline data
+                    'source': 'offline',
                   };
                 }).toList();
               });
@@ -233,12 +253,12 @@
             }
           }
 
-
           void EmployeeQuery(String userId) async {
             try {
               final querySnapshot = await FirebaseFirestore.instance
                   .collection('leave_records')
                   .where("user_id", isEqualTo: userId)
+              .where("creator_role",isEqualTo: "employee")
                   .orderBy('start_date')
                   .get();
 
@@ -254,8 +274,9 @@
             try {
               final querySnapshot = await FirebaseFirestore.instance
                   .collection('leave_records')
-                  .where('creator_role', isEqualTo: 'employee')
+
                   .orderBy('start_date')
+                  .where("creator_role",isEqualTo: "employee")
                   .get();
               setState(() {
                 currentData = querySnapshot.docs.map((doc) => doc.data()).toList();
@@ -264,6 +285,7 @@
               print('Failed to fetch leave requests: $error');
             }
           }
+
           final Uuid uuid = Uuid();
 
           void saveLeaveRequest() async {
@@ -275,8 +297,7 @@
                 if (doc.exists) {
                   final userName = doc['name'];
 
-                  // Declare a new local variable or use a unique name
-                  final newLeaveRequestId = leaveRequestId ?? uuid.v4(); // Use existing ID for updates
+                  final newLeaveRequestId = leaveRequestId ?? uuid.v4();
 
                   final leaveData = {
                     'id': newLeaveRequestId,
@@ -295,14 +316,13 @@
                   bool isOnline = await checkInternetConnection();
 
                   if (isOnline) {
-                    // If online, update or create the leave request in Firestore
                     if (leaveRequestId == null) {
                       await createLeaveRequest(leaveData);
                     } else {
                       await updateLeaveRequest(leaveRequestId!, leaveData);
                     }
                   } else {
-                    // If offline, save the leave request locally in Hive
+
                     final leaveRequest = LeaveRequest(
                       Id: newLeaveRequestId,
                       leaveType: leaveType.toString(),
@@ -315,15 +335,13 @@
                       userId: uid,
                       userName: userName,
                     );
-
                     if (leaveRequestId == null) {
-                      await LeaveRequestService().addLeaveRequest(leaveRequest);
+                      await addLeaveRequestToHive(leaveRequest);
                     } else {
-                      await LeaveRequestService().updateLeaveRequest(leaveRequest);
+                      await updateLeaveRequestInHive(leaveRequest);
                     }
-
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Leave request saved locally!')),
+                      const SnackBar(content: Text('Leave request saved locally')),
                     );
                   }
                   getData();
@@ -332,12 +350,9 @@
             }
           }
 
-
-
-
           Future<void> saveToHive(List<LeaveRequest> leaveRequests) async {
             final leaveRequestBox = await Hive.openBox<LeaveRequest>('leaveRequestsBox');
-            await leaveRequestBox.clear(); // Clear old data
+            await leaveRequestBox.clear();
             for (var leaveRequest in leaveRequests) {
               await leaveRequestBox.put(leaveRequest.Id, leaveRequest);
             }
@@ -345,6 +360,19 @@
           }
 
 
+          Future<void> addLeaveRequestToHive(LeaveRequest leaveRequest) async {
+            Navigator.pop(context);
+
+            final leaveRequestBox = await Hive.openBox<LeaveRequest>('leaveRequestsBox');
+            await leaveRequestBox.put(leaveRequest.Id, leaveRequest);
+          }
+
+          Future<void> updateLeaveRequestInHive(LeaveRequest leaveRequest) async {
+            Navigator.pop(context);
+            Navigator.pop(context);
+            final leaveRequestBox = await Hive.openBox<LeaveRequest>('leaveRequestsBox');
+            await leaveRequestBox.put(leaveRequest.Id, leaveRequest);
+          }
 
           Future<void> createLeaveRequest(Map<String, dynamic> leaveData) async {
             Navigator.pop(context);
@@ -365,6 +393,7 @@
 
           Future<void> updateLeaveRequest(
               String leaveRequestId, Map<String, dynamic> leaveData) async {
+            Navigator.pop(context);
             Navigator.pop(context);
             try {
               await FirebaseFirestore.instance
@@ -657,35 +686,46 @@
                                       mainAxisAlignment: MainAxisAlignment.end,
                                       children: [
                                         _actionButton(
-                                            text: "Approve",
-                                            icon: Icons.check,
-                                            color: Colors.green,
-                                            onPressed: () {
-                                              FirebaseFirestore.instance
-                                                  .collection('leave_records')
-                                                  .doc(workDetail['id'])
-                                                  .update({
-                                                'status': 'Approved'
-                                              }).then((value) {
-                                                ScaffoldMessenger.of(context)
-                                                    .showSnackBar(
-                                                  SnackBar(
-                                                      content: Text(
-                                                          'Leave request approved!'),
-                                                      backgroundColor:
-                                                      Colors.green),
-                                                );
-                                                getData();
-                                              }).catchError((error) {
-                                                ScaffoldMessenger.of(context)
-                                                    .showSnackBar(
-                                                  SnackBar(
-                                                      content: Text(
-                                                          'Failed to approve leave request: $error'),
-                                                      backgroundColor: Colors.red),
-                                                );
-                                              });
-                                            }),
+                                          text: "Approve",
+                                          icon: Icons.check,
+                                          color: Colors.green,
+                                          onPressed: () async {
+                                            bool isOnline = await checkInternetConnection();
+
+                                            if (!isOnline) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(
+                                                  content: Text('No internet connection. Please try again later.'),
+                                                  backgroundColor: Colors.orange,
+                                                ),
+                                              );
+                                              return;
+                                            }
+
+                                            FirebaseFirestore.instance
+                                                .collection('leave_records')
+                                                .doc(workDetail['id'])
+                                                .update({'status': 'Approved'})
+                                                .then((value) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(
+                                                  content: Text('Leave request approved!'),
+                                                  backgroundColor: Colors.green,
+                                                ),
+                                              );
+                                              getData();
+                                            })
+                                                .catchError((error) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(
+                                                  content: Text('Failed to approve leave request: $error'),
+                                                  backgroundColor: Colors.red,
+                                                ),
+                                              );
+                                            });
+                                          },
+                                        ),
+
                                         SizedBox(
                                           width: 10,
                                         ),
@@ -725,20 +765,51 @@
                                     Align(
                                       alignment: Alignment.bottomRight,
                                       child: TextButton.icon(
-                                        onPressed: () {
-                                          FirebaseFirestore.instance
-                                              .collection('leave_records')
-                                              .doc(workDetail['id'])
-                                              .delete()
-                                              .then((value) {
+                                        onPressed: () async {
+                                          final leaveRequestId = workDetail['id'];
+
+                                          bool isOnline = await checkInternetConnection();
+
+                                          if (isOnline) {
+
+                                            FirebaseFirestore.instance
+                                                .collection('leave_records')
+                                                .doc(leaveRequestId)
+                                                .delete()
+                                                .then((value) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(
+                                                  content: Text('Leave request deleted !'),
+                                                  backgroundColor: Colors.green,
+                                                ),
+                                              );
+                                              getData();
+                                            }).catchError((error) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(
+                                                  content: Text('Failed to delete leave request: $error'),
+                                                  backgroundColor: Colors.red,
+                                                ),
+                                              );
+                                            });
+                                          } else {
+
+                                            final leaveRequestBox = await Hive.openBox<LeaveRequest>('leaveRequestsBox');
+                                            final pendingDeletionsBox = await Hive.openBox<String>('pendingDeletionsBox');
+                                            await leaveRequestBox.delete(leaveRequestId);
+                                            await pendingDeletionsBox.add(leaveRequestId);
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(
+                                                content: Text('Deleted Offline'),
+                                                backgroundColor: Colors.red,
+                                              ),
+                                            );
+
                                             getData();
-                                          });
+                                          }
                                         },
-                                        icon: Icon(Icons.delete,
-                                            color: Colors.redAccent),
-                                        label: Text('Cancel Request',
-                                            style:
-                                            TextStyle(color: Colors.redAccent)),
+                                        icon: Icon(Icons.delete, color: Colors.redAccent),
+                                        label: Text('Cancel Request', style: TextStyle(color: Colors.redAccent)),
                                       ),
                                     ),
                                 ],
@@ -1229,8 +1300,6 @@
                               : leaveRequest['end_date'],
                         ),
                       ),
-
-
                       _statusRow(
                         title: 'Current Status',
                         value: leaveRequest['status'],

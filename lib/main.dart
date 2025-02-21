@@ -27,7 +27,7 @@ import 'homepage/Dashboard/profileedit.dart';
       Hive.registerAdapter(AttendanceAdapter());
     }
     await Hive.openBox<Attendance>('attendanceBox');
-    if (!Hive.isAdapterRegistered(2)) {
+    if (!Hive.isAdapterRegistered(5)) {
       Hive.registerAdapter(WorkDetailsAdapter());
     }
     await Hive.openBox<WorkDetails>('workDetails');

@@ -38,9 +38,14 @@ class _BiometricLoginPageState extends State<BiometricLoginPage> {
         });
       }
     });
+    _checkUserRole();
   }
   List<Map<String, dynamic>> currentData = [];
 
+  Future<void> storeUserRole(String role) async {
+    var box = await Hive.openBox('userBox');
+    await box.put('role', role);
+  }
 
   void _submitForm() async {
     print('Login started...');
@@ -64,12 +69,13 @@ class _BiometricLoginPageState extends State<BiometricLoginPage> {
         if (user != null) {
           print('User logged in: ${user.uid}');
 
-          print('prrrrrrrrrrrrrre');
+          final role = await _fetchUserRoleFromFirestore(user.uid);
+          await storeUserRole(role);
           await fetchAndStoreLeaveRecords();
           await fetchAndStoreAttendance();
-
           await fetchAndStoreUserProfile(user.uid);
           await fetchAndStoreWorkDetails();
+
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => Bar()),
@@ -87,6 +93,11 @@ class _BiometricLoginPageState extends State<BiometricLoginPage> {
     }
   }
 
+  Future<String> _fetchUserRoleFromFirestore(String userId) async {
+    final userDoc = await FirebaseFirestore.instance.collection('user').doc(userId).get();
+    final role = userDoc['role'];
+    return role;
+  }
   Future<void> fetchAndStoreLeaveRecords() async {
     try {
 
@@ -109,6 +120,18 @@ class _BiometricLoginPageState extends State<BiometricLoginPage> {
       print('Leave records successfully fetched and stored in Hive.');
     } catch (e) {
       print('Error fetching or storing leave records: $e');
+    }
+  }
+  Future<String?> getUserRole() async {
+    var box = await Hive.openBox('userBox');
+    return box.get('role');
+  }
+  void _checkUserRole() async {
+    final role = await getUserRole();
+    if (role != null) {
+      print('User role fetched from Hive: $role');
+    } else {
+      print('No role found in Hive, please ensure the user is logged in');
     }
   }
 
@@ -138,33 +161,23 @@ class _BiometricLoginPageState extends State<BiometricLoginPage> {
         print('Failed to fetch and store user profile: $error');
       }
     }
-
   Future<void> fetchAndStoreWorkDetails() async {
     try {
-      final QuerySnapshot snapshot = await FirebaseFirestore.instance
-          .collection('workDetails')
-          .orderBy('StartDate', descending: false)
-          .get();
 
-      final Box<WorkDetails> workDetailsBox = await Hive.openBox<WorkDetails>('workDetailsBox');
-      workDetailsBox.clear();
-      for (var doc in snapshot.docs) {
-        workDetailsBox.add(WorkDetails(
-          title: doc['title'],
-          description: doc['description'],
-          department: doc['Department'],
-          status: doc['Status'],
-          priority: doc['Priority'],
-          progressUpdates: doc['Progressupdates'],
-          startDate: doc['StartDate'],
-          deadline: doc['deadline'],
-          assignedTo: doc['Assignedto'],
-          uid: doc['uid'],
-        ));
-        print("Work details data fetched and stored in Hive");
+      final workDetailsSnapshot = await FirebaseFirestore.instance.collection('workDetails').get();
+
+      final List<WorkDetails> workDetailsList = workDetailsSnapshot.docs.map((doc) {
+        return WorkDetails.fromMap(doc.data());
+      }).toList();
+      final box = await Hive.openBox<WorkDetails>('workDetails');
+
+      for (var workDetail in workDetailsList) {
+        box.put(workDetail.id, workDetail);
       }
-    } catch (error) {
-      print('Failed to fetch and store WorkDetails records: $error');
+
+      print('WorkDetails saved to Hive successfully!');
+    } catch (e) {
+      print('Error fetching and storing workDetails: $e');
     }
   }
 

@@ -37,6 +37,8 @@ class LeaveRequest {
 
 
 
+
+
   LeaveRequest( {
     required this.leaveType,
     required this.reason,
@@ -51,16 +53,16 @@ class LeaveRequest {
   });
   factory LeaveRequest.fromMap(Map<String, dynamic> map) {
     return LeaveRequest(
-      Id: map['id'] ?? '', // Default empty string if null
-      leaveType: map['leave_type'] ?? '', // Default empty string if null
-      reason: map['reason'] ?? '', // Default empty string if null
+      Id: map['id'] ?? '',
+      leaveType: map['leave_type'] ?? '',
+      reason: map['reason'] ?? '',
       startDate: map['start_date'] != null ? (map['start_date'] is Timestamp ? map['start_date'].toDate() : DateTime.tryParse(map['start_date'])) : null,
       endDate: map['end_date'] != null ? (map['end_date'] is Timestamp ? map['end_date'].toDate() : DateTime.tryParse(map['end_date'])) : null,
-      status: map['status'] ?? 'Pending', // Default to 'Pending'
-      department: map['department'] ?? '', // Default empty string if null
+      status: map['status'] ?? 'Pending',
+      department: map['department'] ?? '',
       creatorRole: map['creator_role'],
-      userId: map['user_id'] ?? '', // Default empty string if null
-      userName: map['user_name'] ?? '', // Default empty string if null
+      userId: map['user_id'] ?? '',
+      userName: map['user_name'] ?? '',
 
     );
   }
