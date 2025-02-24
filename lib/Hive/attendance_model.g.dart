@@ -8,7 +8,7 @@ part of 'attendance_model.dart';
 
 class AttendanceAdapter extends TypeAdapter<Attendance> {
   @override
-  final int typeId = 0;
+  final int typeId = 1;
 
   @override
   Attendance read(BinaryReader reader) {

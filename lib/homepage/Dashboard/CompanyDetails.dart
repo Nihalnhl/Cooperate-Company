@@ -5,8 +5,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../Hive/company_model.dart';
 
 class Companydetails extends StatefulWidget {
   const Companydetails({super.key});
@@ -104,6 +107,10 @@ _loadimage();
       });
     }
   }
+  Future<List<Company>> getCompanyDataFromHive() async {
+    final box = await Hive.openBox<Company>('companyBox');
+    return box.values.toList();
+  }
 
   @override
   void initState() {
@@ -188,6 +195,9 @@ _loadimage();
                             ? FileImage(selectedImage!)
                             :  FileImage(File(data!['url']))
                         as ImageProvider,
+                        child: selectedImage == null ?
+                        Center(child: Icon(Icons.person),):
+                        SizedBox(),
                       ),
                     ),
                   ),
@@ -330,12 +340,15 @@ _loadimage();
                     SizedBox(height: 15),
                     Center(
                       child: CircleAvatar(
-                        backgroundColor: Colors.grey.shade300,
+                        backgroundColor: Colors.white,
                         radius: 100,
                         backgroundImage: selectedImage != null
                             ? FileImage(selectedImage!)
                             : FileImage(File(data!['url']))
                         as ImageProvider,
+                        child: selectedImage == null ?
+                        Center(child: Icon(Icons.photo,size: 50,),):
+                        SizedBox(),
                       ),
                     ),
                 

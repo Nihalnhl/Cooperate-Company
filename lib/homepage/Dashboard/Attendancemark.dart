@@ -25,7 +25,7 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
   Timer? _timer;
   bool _isLoading = false;
   bool _isCheckedIn = false;
-  int _requiredWorkTime = 0;
+  int _requiredWorkTime = 8 * 60 * 60 * 1000;
   bool _isOffline = false;
   late StreamSubscription<ConnectivityResult> _connectivitySubscription;
 
@@ -226,7 +226,6 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
     );
   }
 
-
   Future<void> _recordCheckOut() async {
     final now = DateTime.now();
     final formattedTime = DateFormat('hh:mm a').format(now);
@@ -281,115 +280,284 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
     _connectivitySubscription.cancel();
     super.dispose();
   }
+  double get _progressValue {
+    return (workTime / _requiredWorkTime).clamp(0.0, 1.0);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: Text(
-          "CheckIn and CheckOut",
-          style: TextStyle(fontWeight: FontWeight.w600, color: Colors.black),
+        title: const Text(
+          "Attendance",
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
         ),
-        centerTitle: true,
-        backgroundColor: Colors.white,
-        elevation: 0,
         automaticallyImplyLeading: false,
+        centerTitle: true,
+        elevation: 0,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-              if (_isLoading) Center(child: CircularProgressIndicator()),
-              if (!_isLoading) ...[
-                Card(
-                  elevation: 10,
-                  shadowColor: Colors.blueGrey,
-                  margin: EdgeInsets.all(10),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15)),
-                  child: Padding(
-                    padding: const EdgeInsets.all(20.0),
+      body: SafeArea(
+
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              SizedBox(
+                height: 15,
+              ),
+              if (_isOffline)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red[50],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.red[200]!),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.wifi_off, color: Colors.red[700], size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'You are currently offline. Check-in/out requires network connectivity.',
+                          style: TextStyle(color: Colors.red[700]),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              if (_isLoading)
+                const Center(child: CircularProgressIndicator())
+              else
+                Expanded(
+                  child: SingleChildScrollView(
                     child: Column(
                       children: [
-                        _creatorRole == 'employee'
-                            ? Text(
-                                "Required Work Time: ${(_requiredWorkTime ~/ 60000) ~/ 60} hours",
-                                style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.black),
-                              )
-                            : SizedBox.shrink(),
-                        SizedBox(height: 10),
-                        Text(
-                          "Check-in: ${checkInTime ?? '--:--'}",
-                          style: TextStyle(
-                              fontSize: 20, fontWeight: FontWeight.w600),
-                        ),
-                        SizedBox(height: 10),
-                        Text(
-                          "Check-out: ${checkOutTime ?? '--:--'}",
-                          style: TextStyle(
-                              fontSize: 20, fontWeight: FontWeight.w600),
-                        ),
-                        SizedBox(height: 10),
-                        Container(
-                          padding: EdgeInsets.all(50),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade300,
-                            shape: BoxShape.circle,
+                        Card(
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                          child: Column(
-                            children: [
-                              Text("Work Time:"),
-                              Text(
-                                formatDuration(workTime),
-                                style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black,
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _TimeCard(
+                                        title: 'Check-in',
+                                        time: checkInTime ?? '--:--',
+                                        icon: Icons.login,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: _TimeCard(
+                                        title: 'Check-out',
+                                        time: checkOutTime ?? '--:--',
+                                        icon: Icons.logout,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                            ],
+                                const SizedBox(height: 24),
+                                SizedBox(
+                                  height: 200,
+                                  width: 200,
+                                  child: Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      CircularProgressIndicator(
+                                        value: _progressValue,
+                                        strokeWidth: 12,
+                                        backgroundColor: Colors.grey[200],
+                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                          Colors.brown[400]!,
+                                        ),
+                                      ),
+                                      Center(
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(
+                                              Icons.timer,
+                                              size: 24,
+                                              color: Colors.grey,
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              formatDuration(workTime),
+                                              style: const TextStyle(
+                                                fontSize: 24,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            const Text(
+                                              'Work Time',
+                                              style: TextStyle(
+                                                color: Colors.grey,
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (_creatorRole == 'employee') ...[
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    'Required: ${formatDuration(_requiredWorkTime)}',
+                                    style: const TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(height: 24),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    onPressed: !_isOffline
+                                        ? (_isCheckedIn
+                                        ? (workTime >= _requiredWorkTime
+                                        ? _recordCheckOut
+                                        : null)
+                                        : _recordCheckIn)
+                                        : null,
+                                    icon: Icon(
+                                      _isCheckedIn ? Icons.logout : Icons.login,
+                                      color: Colors.white,
+                                    ),
+                                    label: Text(
+                                      _isCheckedIn ? 'Check-out' : 'Check-in',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.brown[400],
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 16,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Card(
+                          elevation: 1,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: const [
+                                    Icon(Icons.calendar_today,
+                                        size: 16, color: Colors.grey),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      "Today's Progress",
+                                      style: TextStyle(
+                                        color: Colors.grey,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: LinearProgressIndicator(
+                                    value: _progressValue,
+                                    backgroundColor: Colors.grey[200],
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.brown[400]!,
+                                    ),
+                                    minHeight: 8,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
                 ),
-                SizedBox(height: 20),
-                if (!_isCheckedIn)
-                  ElevatedButton.icon(
-                    onPressed: _recordCheckIn,
-                    icon: Icon(Icons.login, color: Colors.white),
-                    label:
-                        Text('Check-in', style: TextStyle(color: Colors.white)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.brown.shade300,
-                      minimumSize: Size(double.infinity, 50),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(15)),
-                    ),
-                  ),
-                SizedBox(height: 10),
-                if (_isCheckedIn)
-                  ElevatedButton.icon(
-                    onPressed:
-                        workTime >= _requiredWorkTime ? _recordCheckOut : null,
-                    icon: Icon(Icons.exit_to_app, color: Colors.white),
-                    label: Text('Check-out',
-                        style: TextStyle(color: Colors.white)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.brown.shade300,
-                      minimumSize: Size(double.infinity, 50),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(15)),
-                    ),
-                  ),
-              ],
-            ]
+            ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+class _TimeCard extends StatelessWidget {
+  final String title;
+  final String time;
+  final IconData icon;
+
+  const _TimeCard({
+    required this.title,
+    required this.time,
+    required this.icon,
+    Key? key,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 18, color: Colors.grey),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            time,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
       ),
     );
   }

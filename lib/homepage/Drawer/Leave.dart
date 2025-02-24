@@ -5,7 +5,6 @@
     import 'package:hive/hive.dart';
     import 'package:intl/intl.dart';
     import 'package:uuid/uuid.dart';
-
     import '../../Hive/leave_request_model.dart';
 
         class Leave extends StatefulWidget {
@@ -70,8 +69,7 @@
 
                   if (mounted) {
                     setState(() {
-
-                    }); // Refresh the page
+                    });
                   }
                 }
               }
@@ -97,6 +95,7 @@
               }
             }
           }
+
           void getData() async {
             final User? user = auth.currentUser;
             final uid = user?.uid;

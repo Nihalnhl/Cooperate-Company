@@ -7,7 +7,7 @@ import 'package:local_auth/local_auth.dart';
 import 'package:loginpage/Hive/attendance_model.dart';
 import 'package:loginpage/Loginpage/Signup.dart';
 import 'package:loginpage/homepage/Dashboard/bottomnavigation.dart';
-
+import '../Hive/company_model.dart';
 import '../Hive/leave_request_model.dart';
 import '../Hive/user_profile.dart';
 import '../Hive/work_details_model.dart';
@@ -40,6 +40,7 @@ class _BiometricLoginPageState extends State<BiometricLoginPage> {
     });
     _checkUserRole();
   }
+
   List<Map<String, dynamic>> currentData = [];
 
   Future<void> storeUserRole(String role) async {
@@ -47,49 +48,69 @@ class _BiometricLoginPageState extends State<BiometricLoginPage> {
     await box.put('role', role);
   }
 
-  void _submitForm() async {
-    print('Login started...');
-    if (_formKey.currentState?.validate() ?? false) {
-      setState(() {
-        isLoading = true;
-      });
-
-      final email = _emailController.text;
-      final password = _passController.text;
-
-      try {
-        final userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
-          email: email,
-          password: password,
-        );
-
-        await Future.delayed(Duration(seconds: 2));
-        final User? user = FirebaseAuth.instance.currentUser;
-
-        if (user != null) {
-          print('User logged in: ${user.uid}');
-
-          final role = await _fetchUserRoleFromFirestore(user.uid);
-          await storeUserRole(role);
-          await fetchAndStoreLeaveRecords();
-          await fetchAndStoreAttendance();
-          await fetchAndStoreUserProfile(user.uid);
-          await fetchAndStoreWorkDetails();
-
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => Bar()),
-          );
-        } else {
-          print('User not found after login.');
-        }
-      } catch (e) {
-        print('Error during login: $e');
-      } finally {
+    void _submitForm() async {
+      print('Login started...');
+      if (_formKey.currentState?.validate() ?? false) {
         setState(() {
-          isLoading = false;
+          isLoading = true;
         });
+
+        final email = _emailController.text;
+        final password = _passController.text;
+
+        try {
+          final userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+            email: email,
+            password: password,
+          );
+
+          await Future.delayed(Duration(seconds: 2));
+          final User? user = FirebaseAuth.instance.currentUser;
+
+          if (user != null) {
+            print('User logged in: ${user.uid}');
+
+            final role = await _fetchUserRoleFromFirestore(user.uid);
+            await storeUserRole(role);
+            await fetchAndStoreLeaveRecords();
+            await fetchAndStoreAttendance();
+            await fetchAndStoreUserProfile(user.uid);
+            await fetchAndStoreWorkDetails();
+            await fetchAndStoreCompanyData();
+
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => Bar()),
+            );
+          } else {
+            print('User not found after login.');
+          }
+        } catch (e) {
+          print('Error during login: $e');
+        } finally {
+          setState(() {
+            isLoading = false;
+          });
+        }
       }
+    }
+  Future<void> fetchAndStoreCompanyData() async {
+    try {
+      final box = await Hive.openBox<Company>('companyBox');
+      final QuerySnapshot snapshot = await FirebaseFirestore.instance.collection('company').get();
+
+      List<Company> companyList = snapshot.docs.map((doc) {
+        return Company.fromMap(doc.data() as Map<String, dynamic>);
+      }).toList();
+
+      await box.clear();
+
+      for (var company in companyList) {
+        await box.put(company.name, company);
+      }
+      print('Company data stored in Hive successfully');
+    } catch (e) {
+      print('Error fetching company data: $e');
     }
   }
 
@@ -216,6 +237,12 @@ class _BiometricLoginPageState extends State<BiometricLoginPage> {
     } on PlatformException catch (e) {
       print(e);
     }
+  }
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passController.dispose();
+    super.dispose();
   }
 
   @override

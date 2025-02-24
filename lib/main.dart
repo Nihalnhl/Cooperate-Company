@@ -7,6 +7,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:loginpage/Hive/user_profile.dart';
   import 'package:loginpage/Loginpage/wrap.dart';
   import 'Hive/attendance_model.dart';
+import 'Hive/company_model.dart';
+
 import 'Hive/leave_request_model.dart';
 import 'Hive/work_details_model.dart';
 import 'homepage/Dashboard/profileedit.dart';
@@ -36,8 +38,10 @@ import 'homepage/Dashboard/profileedit.dart';
       Hive.registerAdapter(LeaveRequestAdapter());
     }
     await Hive.openBox<LeaveRequest>('leaveRequestsBox');
-
-
+    if (!Hive.isAdapterRegistered(6)) {
+      Hive.registerAdapter(CompanyAdapter());
+    }
+    await Hive.openBox<Company>('companyBox');
     final connectivityService = ConnectivityService();
     connectivityService.initialize();
 
@@ -53,6 +57,7 @@ import 'homepage/Dashboard/profileedit.dart';
         title: 'Biometric Login',
         theme: ThemeData(primarySwatch: Colors.blue,),
         home: wrapper(),
+
         builder: EasyLoading.init(),
         debugShowCheckedModeBanner: false,
       );

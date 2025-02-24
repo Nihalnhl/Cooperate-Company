@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloudinary/cloudinary.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -118,6 +119,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   children: <Widget>[
                     CircleAvatar(
                       radius: 60,
+                      backgroundColor: Colors.white,
                       backgroundImage: (selectedImage != null)
                           ? FileImage(selectedImage!) as ImageProvider
                           : (isOnline && data != null && data['url'] != null && data['url'].isNotEmpty)
@@ -125,6 +127,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           : (userProfile?.imagePath != null)
                           ? FileImage(File(userProfile!.imagePath!)) as ImageProvider
                           : const AssetImage('assets/profile.jpeg') as ImageProvider,
+                      child:
+                      selectedImage == null ?
+                      Center(child: Icon(Icons.person,size: 30,)):
+                      SizedBox(),
                     ),
                     const SizedBox(width: 20),
                     Column(
@@ -210,3 +216,5 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 }
+
+

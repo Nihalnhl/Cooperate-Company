@@ -2,7 +2,7 @@ import 'package:hive/hive.dart';
 
 part 'attendance_model.g.dart';
 
-@HiveType(typeId: 0)
+@HiveType(typeId: 1)
 class Attendance extends HiveObject {
   @HiveField(0)
   String name;

@@ -88,7 +88,7 @@ class _HomePageState extends State<HomePage> {
           .get();
 
       final List<Map<String, dynamic>> leaveData =
-          querySnapshot.docs.map((doc) => doc.data()).toList();
+      querySnapshot.docs.map((doc) => doc.data()).toList();
 
       Map<String, int> statusCounts = {};
       int approvedLeaves = 0;
@@ -192,12 +192,10 @@ class _HomePageState extends State<HomePage> {
 
   void fetchWorkDetails() async {
     final QuerySnapshot snapshot =
-        await FirebaseFirestore.instance.collection('workDetails').get();
+    await FirebaseFirestore.instance.collection('workDetails').get();
     final List<QueryDocumentSnapshot> documents = snapshot.docs;
-
     int completedCount = 0;
     int pendingCount = 0;
-
     for (var doc in documents) {
       final data = doc.data() as Map<String, dynamic>;
       if (data['Status'] == 'Completed') {
@@ -250,13 +248,16 @@ class _HomePageState extends State<HomePage> {
       isOnline = connectivityResult != ConnectivityResult.none;
     });
 
-    connectivitySubscription = Connectivity().onConnectivityChanged.listen((result) {
-      setState(() {
-        isOnline = result != ConnectivityResult.none;
-      });
-    });
+    connectivitySubscription =
+        Connectivity().onConnectivityChanged.listen((result) {
+          setState(() {
+            isOnline = result != ConnectivityResult.none;
+          });
+        });
   }
+
   late Box<UserProfile> profileBox;
+
   @override
   void initState() {
     final FirebaseAuth auth = FirebaseAuth.instance;
@@ -278,6 +279,7 @@ class _HomePageState extends State<HomePage> {
     fetchTLs();
     _checkConnectivity();
   }
+
   @override
   void dispose() {
     // TODO: implement dispose
@@ -291,7 +293,7 @@ class _HomePageState extends State<HomePage> {
     var userProfile = userid != null ? profileBox.get(userid!) : null;
     return StreamBuilder(
         stream:
-            FirebaseFirestore.instance.collection('user').doc(id).snapshots(),
+        FirebaseFirestore.instance.collection('user').doc(id).snapshots(),
         builder: (context, snapshots) {
           final data = snapshots.data;
           if (snapshots.hasData) {
@@ -300,7 +302,7 @@ class _HomePageState extends State<HomePage> {
                 appBar: AppBar(
                   title: Text('Team Lead ',
                       style:
-                          TextStyle(fontSize: 25, fontWeight: FontWeight.bold)),
+                      TextStyle(fontSize: 25, fontWeight: FontWeight.bold)),
                   actions: [
                     IconButton(
                         onPressed: () {}, icon: Icon(Icons.notifications)),
@@ -341,12 +343,15 @@ class _HomePageState extends State<HomePage> {
                               radius: 40,
 
                               backgroundImage: (selectedImage != null)
-                            ? FileImage(selectedImage!) as ImageProvider
-                            : (isOnline && data != null && data['url'] != null && data['url'].isNotEmpty)
-                            ? NetworkImage(data['url'])
-                            : (userProfile?.imagePath != null)
-                            ? FileImage(File(userProfile!.imagePath!)) as ImageProvider
-                            : const AssetImage('assets/profile.jpeg') as ImageProvider,
+                                  ? FileImage(selectedImage!) as ImageProvider
+                                  : (isOnline && data['url'] != null &&
+                                  data['url'].isNotEmpty)
+                                  ? NetworkImage(data['url'])
+                                  : (userProfile?.imagePath != null)
+                                  ? FileImage(File(
+                                  userProfile!.imagePath!)) as ImageProvider
+                                  : const AssetImage(
+                                  'assets/profile.jpeg') as ImageProvider,
                             ),
                             SizedBox(height: 5),
                             Text(
@@ -469,7 +474,8 @@ class _HomePageState extends State<HomePage> {
                                 ),
                                 SizedBox(height: 10),
                                 Text(
-                                  '${workDonePercentage.toStringAsFixed(0)}% of the tasks have been completed.',
+                                  '${workDonePercentage.toStringAsFixed(
+                                      0)}% of the tasks have been completed.',
                                   style: TextStyle(fontSize: 16),
                                 ),
                               ],
@@ -501,11 +507,11 @@ class _HomePageState extends State<HomePage> {
                               BarSeries<ProgressData, String>(
                                 dataSource: progressData,
                                 xValueMapper: (ProgressData data, _) =>
-                                    data.assignedTo,
+                                data.assignedTo,
                                 yValueMapper: (ProgressData data, _) =>
-                                    data.progress,
+                                data.progress,
                                 dataLabelSettings:
-                                    DataLabelSettings(isVisible: true),
+                                DataLabelSettings(isVisible: true),
                                 markerSettings: MarkerSettings(isVisible: true),
                                 color: Colors.brown.shade300,
                               ),
@@ -522,7 +528,7 @@ class _HomePageState extends State<HomePage> {
                 appBar: AppBar(
                   title: Text('Admin Dashboard',
                       style:
-                          TextStyle(fontSize: 25, fontWeight: FontWeight.bold)),
+                      TextStyle(fontSize: 25, fontWeight: FontWeight.bold)),
                   actions: [
                     IconButton(
                         onPressed: () {}, icon: Icon(Icons.notifications)),
@@ -775,11 +781,14 @@ class _HomePageState extends State<HomePage> {
                               radius: 40,
                               backgroundImage: (selectedImage != null)
                                   ? FileImage(selectedImage!) as ImageProvider
-                                  : (isOnline && data != null && data['url'] != null && data['url'].isNotEmpty)
+                                  : (isOnline && data['url'] != null &&
+                                  data['url'].isNotEmpty)
                                   ? NetworkImage(data['url'])
                                   : (userProfile?.imagePath != null)
-                                  ? FileImage(File(userProfile!.imagePath!)) as ImageProvider
-                                  : const AssetImage('assets/profile.jpeg') as ImageProvider,
+                                  ? FileImage(File(
+                                  userProfile!.imagePath!)) as ImageProvider
+                                  : const AssetImage(
+                                  'assets/profile.jpeg') as ImageProvider,
                             ),
                             Text(
                               data["name"],
@@ -796,92 +805,95 @@ class _HomePageState extends State<HomePage> {
                           ],
                         ),
                       ),
-                      _buildDrawerItem(
+                      buildDrawerItem(
                           icon: Icons.dashboard_outlined,
                           label: "Work Details",
-                          onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => Workdetails2()))),
-                      _buildDrawerItem(
+                          onTap: () =>
+                              Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (context) => Workdetails2()))),
+                      buildDrawerItem(
                           icon: Icons.people_outline,
                           label: "Schedule & Attendance",
-                          onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => LoginLogoutScreen1()))),
-                      _buildDrawerItem(
+                          onTap: () =>
+                              Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (context) =>
+                                          LoginLogoutScreen1()))),
+                      buildDrawerItem(
                           icon: Icons.person_off_outlined,
                           label: "Leaves",
-                          onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => Leave()))),
+                          onTap: () =>
+                              Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (context) => Leave()))),
+
                     ],
                   ),
                 ),
-                body: Container(
-                  child: SingleChildScrollView(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16.0, vertical: 20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 20),
-                          SfCircularChart(
-                            title: ChartTitle(
-                                text: 'Leave Status Breakdown',
-                                textStyle:
-                                    TextStyle(fontWeight: FontWeight.bold)),
-                            legend: Legend(
-                                isVisible: true,
-                                overflowMode: LegendItemOverflowMode.wrap),
-                            series: <CircularSeries>[
-                              PieSeries<ChartData4, String>(
-                                dataSource: chartData,
-                                xValueMapper: (ChartData4 data, _) =>
-                                    data.status,
-                                yValueMapper: (ChartData4 data, _) =>
-                                    data.count,
-                                dataLabelMapper: (ChartData4 data, _) =>
-                                    '${data.status}: ${data.count}',
-                                dataLabelSettings:
-                                    DataLabelSettings(isVisible: true),
-                              ),
-                            ],
-                          ),
-                          _buildSectionHeader("Work Progress"),
-                          SizedBox(height: 10),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              _buildStatCard(
-                                "Work Pending",
-                                "${workPendingPercentage.toStringAsFixed(0)}%",
-                                Colors.redAccent,
-                              ),
-                              _buildStatCard(
-                                "Work Done",
-                                "${workDonePercentage.toStringAsFixed(0)}%",
-                                Colors.greenAccent,
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: 20),
-                          _buildSectionHeader("General Stats"),
-                          SizedBox(height: 10),
-                          _buildInfoCard(
-                            title: "Leaves Taken: $leavesTaken",
-                            subtitle: "Performance: Good",
-                          ),
-                          SizedBox(height: 10),
-                          _buildInfoCard(
-                            title: "Pending Projects: $pending",
-                            subtitle: "Focus Needed",
-                          ),
-                        ],
-                      ),
+                body: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16.0, vertical: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 20),
+                        SfCircularChart(
+                          title: ChartTitle(
+                              text: 'Leave Status Breakdown',
+                              textStyle:
+                              TextStyle(fontWeight: FontWeight.bold)),
+                          legend: Legend(
+                              isVisible: true,
+                              overflowMode: LegendItemOverflowMode.wrap),
+                          series: <CircularSeries>[
+                            PieSeries<ChartData4, String>(
+                              dataSource: chartData,
+                              xValueMapper: (ChartData4 data, _) =>
+                              data.status,
+                              yValueMapper: (ChartData4 data, _) =>
+                              data.count,
+                              dataLabelMapper: (ChartData4 data, _) =>
+                              '${data.status}: ${data.count}',
+                              dataLabelSettings:
+                              DataLabelSettings(isVisible: true),
+                            ),
+                          ],
+                        ),
+                        buildSectionHeader("Work Progress"),
+                        SizedBox(height: 10),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            _buildStatCard(
+                              "Work Pending",
+                              "${workPendingPercentage.toStringAsFixed(0)}%",
+                              Colors.redAccent,
+                            ),
+                            _buildStatCard(
+                              "Work Done",
+                              "${workDonePercentage.toStringAsFixed(0)}%",
+                              Colors.greenAccent,
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 20),
+                        buildSectionHeader("General Stats"),
+                        SizedBox(height: 10),
+                        buildInfoCard(
+                          title: "Leaves Taken: $leavesTaken",
+                          subtitle: "Performance: Good",
+                        ),
+                        SizedBox(height: 10),
+                        buildInfoCard(
+                          title: "Pending Projects: $pending",
+                          subtitle: "Focus Needed",
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -905,22 +917,65 @@ class _HomePageState extends State<HomePage> {
         });
   }
 
-  Widget _buildDrawerItem(
-      {required IconData icon,
-      required String label,
-      required VoidCallback onTap}) {
-    return ListTile(
-      leading: Icon(icon, color: Colors.brown.shade300),
-      title: Text(label, style: TextStyle(fontSize: 16)),
-      onTap: onTap,
+  // Improved drawer item with hover effect
+  Widget buildDrawerItem({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool isSelected = false,
+  }) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        color: isSelected ? Colors.brown.shade50 : Colors.transparent,
+      ),
+      child: ListTile(
+        leading: Icon(
+          icon,
+          color: isSelected ? Colors.brown : Colors.brown.shade300,
+        ),
+        title: Text(
+          label,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            color: isSelected ? Colors.brown.shade700 : Colors.black87,
+          ),
+        ),
+        onTap: onTap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        dense: true,
+      ),
     );
   }
 
-  Widget _buildSectionHeader(String title) {
-    return Text(
-      title,
-      style: TextStyle(
-          fontSize: 18, fontWeight: FontWeight.w600, color: Colors.black87),
+  Widget buildSectionHeader(String title) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ),
+        Container(
+          width: 40,
+          height: 3,
+          decoration: BoxDecoration(
+            color: Colors.brown.shade300,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(height: 24),
+      ],
     );
   }
 
@@ -959,32 +1014,56 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildInfoCard({required String title, required String subtitle}) {
+  Widget buildInfoCard({
+    required String title,
+    required String subtitle,
+    IconData? icon,
+  }) {
     return Container(
-      width: MediaQuery.of(context).size.width,
-      padding: EdgeInsets.all(14),
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.shade300,
+            color: Colors.grey.shade100,
+            offset: const Offset(0, 4),
             spreadRadius: 2,
-            blurRadius: 5,
+            blurRadius: 8,
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          Row(
+            children: [
+              if (icon != null) ...[
+                Icon(icon, color: Colors.brown.shade300, size: 20),
+                const SizedBox(width: 8),
+              ],
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+              ),
+            ],
           ),
-          SizedBox(height: 5),
+          const SizedBox(height: 8),
           Text(
             subtitle,
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.5,
+              color: Colors.grey.shade700,
+            ),
           ),
         ],
       ),

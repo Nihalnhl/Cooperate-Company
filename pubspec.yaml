@@ -67,6 +67,8 @@ dependencies:
   syncfusion_flutter_sliders: ^28.2.5
   uuid: ^3.0.6
   http:
+  cloudinary: ^1.0.7
+  hive_ui: ^1.0.14
 
 
 

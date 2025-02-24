@@ -2,7 +2,7 @@ import 'package:hive/hive.dart';
 
 part 'user_profile.g.dart';
 
-@HiveType(typeId: 1)
+@HiveType(typeId: 0)
 class UserProfile {
   @HiveField(0)
   final String name;
