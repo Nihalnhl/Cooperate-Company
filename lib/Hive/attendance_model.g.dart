@@ -17,25 +17,46 @@ class AttendanceAdapter extends TypeAdapter<Attendance> {
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
     return Attendance(
-      name: fields[0] as String,
-      login: fields[1] as String,
-      logout: fields[2] as String,
-      date: fields[3] as String,
+      id: fields[0] as String?,
+      userId: fields[1] as String,
+      date: fields[2] as String,
+      login: fields[3] as String?,
+      logout: fields[4] as String?,
+      checkInMillis: fields[5] as int?,
+      logoutMillis: fields[6] as int?,
+      workTime: fields[7] as int,
+      isSynced: fields[8] as bool,
+      name: fields[9] as String?,
+      role: fields[10] as String,
     );
   }
 
   @override
   void write(BinaryWriter writer, Attendance obj) {
     writer
-      ..writeByte(4)
+      ..writeByte(11)
       ..writeByte(0)
-      ..write(obj.name)
+      ..write(obj.id)
       ..writeByte(1)
-      ..write(obj.login)
+      ..write(obj.userId)
       ..writeByte(2)
-      ..write(obj.logout)
+      ..write(obj.date)
       ..writeByte(3)
-      ..write(obj.date);
+      ..write(obj.login)
+      ..writeByte(4)
+      ..write(obj.logout)
+      ..writeByte(5)
+      ..write(obj.checkInMillis)
+      ..writeByte(6)
+      ..write(obj.logoutMillis)
+      ..writeByte(7)
+      ..write(obj.workTime)
+      ..writeByte(8)
+      ..write(obj.isSynced)
+      ..writeByte(9)
+      ..write(obj.name)
+      ..writeByte(10)
+      ..write(obj.role);
   }
 
   @override

@@ -101,6 +101,8 @@ class _HomePageState extends State<HomePage> {
         }
       }
 
+      if (!mounted) return;
+
       setState(() {
         chartData = statusCounts.entries
             .map((entry) => ChartData4(entry.key, entry.value))
@@ -109,12 +111,15 @@ class _HomePageState extends State<HomePage> {
         isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
+
       setState(() {
         isLoading = false;
       });
       print("Error fetching leave records: $e");
     }
-  }
+
+}
 
   void getData() {
     final User? user = auth.currentUser;
@@ -134,7 +139,7 @@ class _HomePageState extends State<HomePage> {
           setState(() {
             role = data!['role'];
             name = data['name'];
-            uid = data["uid"];
+
             print('roles:$role');
             print("name:$name");
           });
@@ -193,9 +198,13 @@ class _HomePageState extends State<HomePage> {
   void fetchWorkDetails() async {
     final QuerySnapshot snapshot =
     await FirebaseFirestore.instance.collection('workDetails').get();
+
+    if (!mounted) return; // Prevents calling setState on a disposed widget
+
     final List<QueryDocumentSnapshot> documents = snapshot.docs;
     int completedCount = 0;
     int pendingCount = 0;
+
     for (var doc in documents) {
       final data = doc.data() as Map<String, dynamic>;
       if (data['Status'] == 'Completed') {
@@ -206,17 +215,17 @@ class _HomePageState extends State<HomePage> {
     }
     final totalCount = completedCount + pendingCount;
 
-    if (totalCount > 0) {
-      setState(() {
-        workDonePercentage = (completedCount / totalCount) * 100;
-        workPendingPercentage = (pendingCount / totalCount) * 100;
-        pending = pendingCount;
-        totalwork1 = totalCount;
-        completedwork = completedCount;
-      });
-    }
-    List<ProgressData> tempData = [];
+    if (!mounted) return;
 
+    setState(() {
+      workDonePercentage = (completedCount / totalCount) * 100;
+      workPendingPercentage = (pendingCount / totalCount) * 100;
+      pending = pendingCount;
+      totalwork1 = totalCount;
+      completedwork = completedCount;
+    });
+
+    List<ProgressData> tempData = [];
     for (var doc in documents) {
       final data = doc.data() as Map<String, dynamic>;
       final progressUpdates =
@@ -228,10 +237,13 @@ class _HomePageState extends State<HomePage> {
       ));
     }
 
+    if (!mounted) return;
+
     setState(() {
       progressData = tempData;
     });
   }
+
 
   Future<void> loadImagehome() async {
     final path = await getImagePath();
@@ -244,12 +256,15 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _checkConnectivity() async {
     final connectivityResult = await Connectivity().checkConnectivity();
+    if (!mounted) return;
+
     setState(() {
       isOnline = connectivityResult != ConnectivityResult.none;
     });
 
     connectivitySubscription =
         Connectivity().onConnectivityChanged.listen((result) {
+          if (!mounted) return;
           setState(() {
             isOnline = result != ConnectivityResult.none;
           });

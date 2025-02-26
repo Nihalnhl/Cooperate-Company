@@ -200,6 +200,7 @@ class _ProfileState extends State<Profile> {
       });
     }
   }
+
   @override
   void dispose() {
     connectivitySubscription?.cancel();
@@ -251,11 +252,12 @@ class _ProfileState extends State<Profile> {
                                 ? FileImage(selectedImage!)
                                 : (data != null && data['url'] != null && data['url'].isNotEmpty
                                 ? FileImage(File(data['url']))
-                                : const AssetImage('assets/profile.jpeg')) as ImageProvider,
+                                :  AssetImage('assets/profile.jpeg')) as ImageProvider,
                             child: selectedImage ==null?
                             Center(child:
-                            Image.asset('assets/profile.jpeg'),):
+                           Icon(Icons.person)):
                            null,
+                            
                           ),
                         ),
                       ),
@@ -291,9 +293,9 @@ class _ProfileState extends State<Profile> {
                             TextFormField(
                               controller: emailController,
                               decoration: InputDecoration(
-                                label: Text("Email"),
+                                labelText: "Email",
+                                hintText: "Enter your email",
                                 hintStyle: TextStyle(color: Colors.black45),
-
                                 filled: true,
                                 fillColor: Colors.white,
                                 border: OutlineInputBorder(
@@ -301,13 +303,19 @@ class _ProfileState extends State<Profile> {
                                   borderSide: BorderSide(color: Colors.brown.shade300, width: 1),
                                 ),
                               ),
+                              keyboardType: TextInputType.emailAddress,
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
                                   return 'Please enter your email';
                                 }
+                                final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+                                if (!emailRegex.hasMatch(value)) {
+                                  return 'Please enter a valid email address';
+                                }
                                 return null;
                               },
                             ),
+
                             const SizedBox(height: 15),
                             TextFormField(
                               controller: addressController,

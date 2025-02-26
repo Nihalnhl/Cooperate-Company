@@ -18,7 +18,7 @@ class LeaveRequest {
   final DateTime? endDate;
 
   @HiveField(4)
-  final String status;
+   String status;
 
   @HiveField(5)
   final String department;
@@ -34,6 +34,8 @@ class LeaveRequest {
 
   @HiveField(9)
   String? Id;
+
+
 
 
 

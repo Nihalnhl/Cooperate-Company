@@ -3,7 +3,11 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:hive/hive.dart';
 import 'package:intl/intl.dart';
+import 'package:loginpage/Hive/user_profile.dart';
+
+import '../../Hive/attendance_model.dart';
 
 class CheckInOutPage1 extends StatefulWidget {
   CheckInOutPage1({super.key});
@@ -26,8 +30,6 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
   bool _isLoading = false;
   bool _isCheckedIn = false;
   int _requiredWorkTime = 8 * 60 * 60 * 1000;
-  bool _isOffline = false;
-  late StreamSubscription<ConnectivityResult> _connectivitySubscription;
 
   @override
   void initState() {
@@ -35,33 +37,11 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
     _fetchUserData();
     _fetchWorkTime();
     _fetchRequiredWorkTime();
-    _checkConnectivity();
-    _connectivitySubscription =
-        Connectivity().onConnectivityChanged.listen((result) {
+    Connectivity().onConnectivityChanged.listen((ConnectivityResult result) {
       if (result != ConnectivityResult.none) {
-        setState(() {
-          _isOffline = false;
-        });
-        _fetchWorkTime();
-      } else {
-        setState(() {
-          _isOffline = true;
-        });
+        _syncDataToFirestore();
       }
     });
-  }
-
-  Future<void> _checkConnectivity() async {
-    var connectivityResult = await (Connectivity().checkConnectivity());
-    if (connectivityResult == ConnectivityResult.none) {
-      setState(() {
-        _isOffline = true;
-      });
-    } else {
-      setState(() {
-        _isOffline = false;
-      });
-    }
   }
 
   Future<void> _fetchUserData() async {
@@ -80,6 +60,7 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
       }
     }
   }
+
 
   Future<void> _fetchRequiredWorkTime() async {
     final User? user = _auth.currentUser;
@@ -159,17 +140,6 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
   }
 
   Future<void> _recordCheckIn() async {
-    if (_isOffline) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Network required to check in',
-          ),
-        ),
-      );
-      return;
-    }
-
     if (_creatorName == null || _creatorRole == null || _uid == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('User information not found!')),
@@ -198,21 +168,32 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
         return;
       }
     }
+    var box = Hive.box<UserProfile>('profileBox');
+    UserProfile? userProfile = box.get(_uid);
 
-    final docRef = await _firestore.collection('Attendance').add({
-      'UserId': _uid,
-      'name': _creatorName,
-      'role': _creatorRole,
-      'Date': formattedDate,
-      'Login': formattedTime,
-      'CheckInTime': nowMillis,
-      'Logout': null,
-      'LogoutTime': null,
-      'WorkTime': 0,
-    });
+    if (userProfile == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('User profile not found!')),
+      );
+      return;
+    }
+
+    var attendanceBox = Hive.box<Attendance>('attendanceBox');
+    Attendance attendance = Attendance(
+      userId: _uid!,
+      date: formattedDate,
+      login: formattedTime,
+      checkInMillis: nowMillis,
+      workTime: 0,
+      isSynced: false,
+      name: userProfile.name,
+      role: userProfile.role,
+    );
+
+    attendanceBox.put(formattedDate, attendance);
+    print(" Check-in data saved to Hive: ${attendance.toJson()}");
 
     setState(() {
-      _currentAttendanceId = docRef.id;
       checkInTime = formattedTime;
       checkOutTime = null;
       checkInMillis = nowMillis;
@@ -221,10 +202,93 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
     });
 
     _startTimer();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Checked in at $formattedTime')),
+    );
+
+    _syncDataToFirestore();
+
+    // final docRef = await _firestore.collection('Attendance').add({
+    //   'UserId': _uid,
+    //   'name': _creatorName,
+    //   'role': _creatorRole,
+    //   'Date': formattedDate,
+    //   'Login': formattedTime,
+    //   'CheckInTime': nowMillis,
+    //   'Logout': null,
+    //   'LogoutTime': null,
+    //   'WorkTime': 0,
+    // });
+
+    // setState(() {
+    //   _currentAttendanceId = docRef.id;
+    //   checkInTime = formattedTime;
+    //   checkOutTime = null;
+    //   checkInMillis = nowMillis;
+    //   workTime = 0;
+    //   _isCheckedIn = true;
+    // });
+
+    _startTimer();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Checked in at $formattedTime')),
     );
   }
+
+
+  Future<void> _syncDataToFirestore() async {
+    if (_uid == null) return;
+    var box = Hive.box<Attendance>('attendanceBox');
+
+    for (var key in box.keys) {
+      Attendance attendance = box.get(key)!;
+
+      if (!attendance.isSynced) {
+        try {
+          var querySnapshot = await _firestore
+              .collection('Attendance')
+              .where('UserId', isEqualTo: _uid)
+              .where('Date', isEqualTo: attendance.date)
+              .get();
+
+          if (querySnapshot.docs.isNotEmpty) {
+
+            await _firestore
+                .collection('Attendance')
+                .doc(querySnapshot.docs.first.id)
+                .update({
+              'Logout': attendance.logout,
+              'LogoutTime': attendance.logoutMillis,
+              'WorkTime': attendance.workTime,
+              'name': attendance.name,
+              'role': attendance.role,
+            });
+          } else {
+
+            await _firestore.collection('Attendance').add({
+              'UserId': attendance.userId,
+              'Date': attendance.date,
+              'Login': attendance.login,
+              'CheckInTime': attendance.checkInMillis,
+              'Logout': attendance.logout,
+              'LogoutTime': attendance.logoutMillis,
+              'WorkTime': attendance.workTime,
+              'name': attendance.name,
+              'role': attendance.role,
+            });
+          }
+
+          attendance.isSynced = true;
+          attendance.save();
+          print("syncing to firestore");
+        } catch (e) {
+          print("Error syncing data: $e");
+        }
+      }
+    }
+  }
+
 
   Future<void> _recordCheckOut() async {
     final now = DateTime.now();
@@ -241,6 +305,32 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
       final doc = querySnapshot.docs.first;
       final data = doc.data();
 
+      var box = Hive.box<Attendance>('attendanceBox');
+      Attendance? attendance = box.get(DateFormat('yyyy-MM-dd').format(now));
+
+      if (attendance != null) {
+        attendance.logout = formattedTime;
+        attendance.logoutMillis = nowMillis;
+        attendance.workTime = workTime;
+        attendance.isSynced = false;
+        attendance.save();
+        print(" Check-out data saved to Hive: ${attendance.toJson()}");
+      } else {
+        print(" Error: No check-in record found for today.");
+      }
+
+      setState(() {
+        _isCheckedIn = false;
+        checkOutTime = formattedTime;
+      });
+
+      _stopTimer();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Checked out at $formattedTime')),
+      );
+
+      _syncDataToFirestore();
       if (data['LogoutTime'] != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('You have already checked out today.')),
@@ -248,19 +338,19 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
         return;
       }
 
-      int totalWorkTime = workTime;
-
-      await _firestore.collection('Attendance').doc(doc.id).update({
-        'Logout': formattedTime,
-        'LogoutTime': nowMillis,
-        'WorkTime': totalWorkTime,
-      });
-
-      _stopTimer();
-      setState(() {
-        _isCheckedIn = false;
-        checkOutTime = formattedTime;
-      });
+      // int totalWorkTime = workTime;
+      //
+      // await _firestore.collection('Attendance').doc(doc.id).update({
+      //   'Logout': formattedTime,
+      //   'LogoutTime': nowMillis,
+      //   'WorkTime': totalWorkTime,
+      // });
+      //
+      // _stopTimer();
+      // setState(() {
+      //   _isCheckedIn = false;
+      //   checkOutTime = formattedTime;
+      // });
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Checked out at $formattedTime')),
@@ -277,9 +367,9 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
   @override
   void dispose() {
     _stopTimer();
-    _connectivitySubscription.cancel();
     super.dispose();
   }
+
   double get _progressValue {
     return (workTime / _requiredWorkTime).clamp(0.0, 1.0);
   }
@@ -302,7 +392,6 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
         elevation: 0,
       ),
       body: SafeArea(
-
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
@@ -310,28 +399,6 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
               SizedBox(
                 height: 15,
               ),
-              if (_isOffline)
-                Container(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.red[50],
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.red[200]!),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.wifi_off, color: Colors.red[700], size: 20),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'You are currently offline. Check-in/out requires network connectivity.',
-                          style: TextStyle(color: Colors.red[700]),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
               if (_isLoading)
                 const Center(child: CircularProgressIndicator())
               else
@@ -426,13 +493,11 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
                                 SizedBox(
                                   width: double.infinity,
                                   child: ElevatedButton.icon(
-                                    onPressed: !_isOffline
-                                        ? (_isCheckedIn
+                                    onPressed: _isCheckedIn
                                         ? (workTime >= _requiredWorkTime
                                         ? _recordCheckOut
                                         : null)
-                                        : _recordCheckIn)
-                                        : null,
+                                        : _recordCheckIn,
                                     icon: Icon(
                                       _isCheckedIn ? Icons.logout : Icons.login,
                                       color: Colors.white,
@@ -458,7 +523,7 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
                               ],
                             ),
                           ),
-                        ),
+                         ),
                         const SizedBox(height: 16),
                         Card(
                           elevation: 1,

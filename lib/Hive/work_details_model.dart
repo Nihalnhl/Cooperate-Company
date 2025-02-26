@@ -5,7 +5,7 @@ part 'work_details_model.g.dart';
 @HiveType(typeId: 5)
 class WorkDetails {
   @HiveField(0)
-  final String id;
+  late final String id;
 
   @HiveField(1)
   final String title;
@@ -14,16 +14,16 @@ class WorkDetails {
   final String description;
 
   @HiveField(3)
-  final String department;
+  final String Department;
 
   @HiveField(4)
-  final String status;
+  final String Status;
 
   @HiveField(5)
   final String priority;
 
   @HiveField(6)
-  final String progressUpdates;
+  final String Progressupdates;
 
   @HiveField(7)
   final DateTime startDate;
@@ -32,24 +32,23 @@ class WorkDetails {
   final DateTime deadline;
 
   @HiveField(9)
-  final String assignedTo;
+  final String AssignedTo;
 
-  @HiveField(10)
-  final String uid;
+
 
 
   WorkDetails({
     required this.id,
     required this.title,
     required this.description,
-    required this.department,
-    required this.status,
+    required this.Department,
+    required this.Status,
     required this.priority,
-    required this.progressUpdates,
+    required this.Progressupdates,
     required this.startDate,
     required this.deadline,
-    required this.assignedTo,
-    required this.uid, String? assignedToUid,
+    required this.AssignedTo,
+
   });
 
   Map<String, dynamic> toMap() {
@@ -57,14 +56,14 @@ class WorkDetails {
       'id': id,
       'title': title,
       'description': description,
-      'department': department,
-      'status': status,
-      'priority': priority,
-      'progressUpdates': progressUpdates,
-      'startDate': startDate,
+      'Department': Department,
+      'Status': Status,
+      'Priority': priority,
+      'Progressupdates': Progressupdates,
+      'StartDate': startDate,
       'deadline': deadline,
-      'assignedTo': assignedTo,
-      'uid': uid,
+      'AssignedTo': AssignedTo,
+
     };
   }
 
@@ -73,14 +72,13 @@ class WorkDetails {
       id: map['id'],
       title: map['title'],
       description: map['description'],
-      department: map['department'],
-      status: map['status'],
-      priority: map['priority'],
-      progressUpdates: map['progressUpdates'],
-      startDate: map['startDate'].toDate(),
+      Department: map['Department'],
+      Status: map['Status'],
+      priority: map['Priority'],
+      Progressupdates: map['Progressupdates'],
+      startDate: map['StartDate'].toDate(),
       deadline: map['deadline'].toDate(),
-      assignedTo: map['assignedTo'],
-      uid: map['uid'],
+      AssignedTo: map['AssignedTo'],
     );
   }
 }

@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -39,36 +38,36 @@ class _hmmState extends State<Workdetails2> {
   String selectedStatus = 'All';
   String selectedDepartment = 'All';
   DateTime? startDate;
-  DateTime? startDate1;
-
   DateTime? endDate;
-  bool isOnline = true;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-
-  late Box<WorkDetails> workDetailsBox;
+  bool isOnline =true;
 
 
   void getData() async {
     final User? user = auth.currentUser;
     final uid = user!.uid;
 
-    final docusnapshot = await FirebaseFirestore.instance.collection('user')
-        .doc(uid)
-        .get();
+
+    final docusnapshot = await FirebaseFirestore.instance.collection('user').doc(uid).get();
     if (docusnapshot.exists) {
       final data = docusnapshot.data() as Map<String, dynamic>?;
       if (mounted) {
         setState(() {
           role = data!['role'];
+          // if (role == "admin" || role == "teamlead") {
+          //   fetchAllWorkDetails();
+          // } else {
+          //   fetchEmployeeWorkDetails();
+          // }
         });
       }
     } else {
       print('Document does not exist in database');
     }
 
+
     final snapshot = await FirebaseFirestore.instance.collection('user').get();
-    final List<Map<String, String>> employeesWithRoles = snapshot.docs.map((
-        doc) {
+    final List<Map<String, String>> employeesWithRoles = snapshot.docs.map((doc) {
       return {
         'name': doc['name'] as String,
         'role': doc['role'] as String,
@@ -79,49 +78,188 @@ class _hmmState extends State<Workdetails2> {
       employeeList = employeesWithRoles;
     });
 
-    var connectivityResult = await Connectivity().checkConnectivity();
-    if (connectivityResult == ConnectivityResult.none) {
-      fetchFromHive();
-    } else {
-      final workDetailsSnapshot = await FirebaseFirestore.instance.collection(
-          'workDetails').get();
-      setState(() {
-        workDetailsList =
-            workDetailsSnapshot.docs.map((doc) => doc.data() as Map<
-                String,
-                dynamic>).toList();
-      });
-
-      syncFirestoreToHive(workDetailsList);
-    }
+    final workDetailsSnapshot = await FirebaseFirestore.instance.collection('workDetails').get();
+    setState(() {
+      workDetailsList = workDetailsSnapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
+    });
     applyFiltersAndUpdate();
   }
 
-  void initializeHive() async {
-    final dir = await getApplicationDocumentsDirectory();
-    Hive.init(dir.path);
 
-    if (!Hive.isAdapterRegistered(WorkDetailsAdapter().typeId)) {
-      Hive.registerAdapter(WorkDetailsAdapter());
-    }
+  void fetchAllWorkDetails() async {
+    final snapshot = await FirebaseFirestore.instance.collection('workDetails').get();
+    List<Map<String, dynamic>> workDetailsList = snapshot.docs.map((doc) {
+      final workDetail = WorkDetails.fromMap(doc.data() as Map<String, dynamic>);
+      return workDetail.toMap();
+    }).toList();
 
-    workDetailsBox = await Hive.openBox<WorkDetails>('workDetails');
+
+    setState(() {
+      this.workDetailsList = workDetailsList;
+    });
   }
 
-  void fetchFromHive() {
-    final hiveData = workDetailsBox.values.map((workDetail) =>
-        workDetail.toMap()).toList();
+  void fetchEmployeeWorkDetails() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final snapshot = await FirebaseFirestore.instance.collection('workDetails').get();
+    List<Map<String, dynamic>> workDetailsList = snapshot.docs.map((doc) {
+      final workDetail = WorkDetails.fromMap(doc.data() as Map<String, dynamic>);
+      return workDetail.toMap();
+    }).toList();
+
+
+    setState(() {
+      this.workDetailsList = workDetailsList;
+    });
+  }
+
+  void fetchFromHive() async {
+    var box = await Hive.openBox('workDetails');
+    List<Map<String, dynamic>> hiveData = box.values.cast<Map<String, dynamic>>().toList();
+
     setState(() {
       workDetailsList = hiveData;
     });
-    print("Data from hive");
+    print("Data from hive: $workDetailsList");
   }
 
-  void syncFirestoreToHive(List<Map<String, dynamic>> firestoreData) async {
-    await workDetailsBox.clear();
-    for (var data in firestoreData) {
-      final workDetail = WorkDetails.fromMap(data);
-      await workDetailsBox.put(workDetail.id, workDetail);
+  void addWorkDetailsOnline(Map<String, dynamic> workDetail) async {
+    try {
+      await _firestore.collection('workDetails').add(workDetail);
+      print("Work details added to Firestore");
+    } catch (e) {
+      print("Error adding work details to Firestore: $e");
+    }
+  }
+  void addWorkDetailsOffline(Map<String, dynamic> workDetail) async {
+    try {
+      var box = await Hive.openBox<WorkDetails>('workDetails');
+      if (!workDetail.containsKey('id')) {
+        workDetail['id'] = Uuid().v4(); // Ensure ID exists
+      }
+      final workDetails = WorkDetails.fromMap(workDetail);
+      await box.put(workDetail['id'], workDetails);
+      print("Work details added to Hive with ID: ${workDetail['id']}");
+    } catch (e) {
+      print("Error adding work details to Hive: $e");
+    }
+  }
+
+  void updateWorkDetailsOnline(String workDetailId, Map<String, dynamic> updatedData) async {
+    try {
+      await _firestore.collection('workDetails').doc(workDetailId).update(updatedData);
+      print("Work details updated in Firestore");
+    } catch (e) {
+      print("Error updating work details in Firestore: $e");
+    }
+  }
+  void updateWorkDetailsOffline(String workDetailId, Map<String, dynamic> updatedData) async {
+    try {
+      var box = await Hive.openBox<WorkDetails>('workDetails');
+      final workDetails = box.values.firstWhere((element) => element.id == workDetailId);
+      final updatedWorkDetails = WorkDetails.fromMap({...workDetails.toMap(), ...updatedData});
+      await box.put(workDetailId, updatedWorkDetails);
+      print("Work details updated in Hive");
+    } catch (e) {
+      print("Error updating work details in Hive: $e");
+    }
+  }
+  void deleteWorkDetailsOnline(String workDetailId) async {
+    try {
+      await _firestore.collection('workDetails').doc(workDetailId).delete();
+      print("Work details deleted from Firestore");
+    } catch (e) {
+      print("Error deleting work details from Firestore: $e");
+    }
+  }
+  void deleteWorkDetailsOffline(String workDetailId) async {
+    try {
+      var box = await Hive.openBox<WorkDetails>('workDetails');
+      final workDetailsKey = box.keys.firstWhere((key) {
+        final workDetails = box.get(key);
+        return workDetails != null && workDetails.id == workDetailId;
+      });
+      await box.delete(workDetailsKey);
+      print("Work details deleted from Hive");
+    } catch (e) {
+      print("Error deleting work details from Hive: $e");
+    }
+  }
+  void handleDelete(String workDetailId, bool isOnline) async {
+    if (isOnline) {
+      deleteWorkDetailsOnline(workDetailId);
+    } else {
+      deleteWorkDetailsOffline(workDetailId);
+    }
+  }
+
+  void syncLocalDataWithFirestore() async {
+    try {
+      var box = await Hive.openBox<WorkDetails>('workDetails');
+      final localWorkDetails = box.values.toList();
+
+      for (var workDetail in localWorkDetails) {
+        final workDetailMap = workDetail.toMap();
+        final workDetailId = workDetailMap['id'];
+        final docSnapshot = await _firestore.collection('workDetails').doc(workDetailId).get();
+
+        if (docSnapshot.exists) {
+          await _firestore.collection('workDetails').doc(workDetailId).update(workDetailMap);
+        } else {
+          await _firestore.collection('workDetails').doc(workDetailId).set(workDetailMap);
+        }
+      }
+
+      await box.clear();
+      print("Local data synced with Firestore");
+    } catch (e) {
+      print("Error syncing local data with Firestore: $e");
+    }
+  }
+  void addOrUpdateWorkDetails(Map<String, dynamic> workDetail, {String? workDetailId}) async {
+    try {
+      if (workDetailId == null) {
+        String newId = Uuid().v4();
+        workDetail['id'] = newId;
+        await _firestore.collection('workDetails').doc(newId).set(workDetail);
+      } else {
+        await _firestore.collection('workDetails').doc(workDetailId).update(workDetail);
+      }
+    } catch (e) {
+      print("Network error, saving data locally: $e");
+      if (workDetailId == null) {
+        workDetailId = Uuid().v4();
+        workDetail['id'] = workDetailId;
+        addWorkDetailsOffline(workDetail);
+      } else {
+        updateWorkDetailsOffline(workDetailId, workDetail);
+      }
+    }
+  }
+  void fetchWorkDetails() async {
+    try {
+
+      final snapshot = await _firestore.collection('workDetails').get();
+      List<Map<String, dynamic>> firestoreData = snapshot.docs.map((doc) => doc.data()).toList();
+      var box = await Hive.openBox<WorkDetails>('workDetails');
+      List<Map<String, dynamic>> hiveData = box.values.map((workDetail) => workDetail.toMap()).toList();
+
+
+      List<Map<String, dynamic>> combinedData = [...firestoreData, ...hiveData];
+
+      setState(() {
+        workDetailsList = combinedData;
+      });
+    } catch (e) {
+      print("Error fetching work details: $e");
+    }
+  }
+
+  void checkNetworkAndSync() async {
+    var connectivityResult = await (Connectivity().checkConnectivity());
+    if (connectivityResult != ConnectivityResult.none) {
+
+      syncLocalDataWithFirestore();
     }
   }
 
@@ -146,18 +284,13 @@ class _hmmState extends State<Workdetails2> {
   }
 
 
+
   List<Map<String, dynamic>> applyFilters(List<Map<String, dynamic>> workDocs) {
     return workDocs.where((workDetail) {
       final workTitle = workDetail['title']?.toLowerCase() ?? '';
       final department = workDetail['Department']?.toLowerCase() ?? '';
       final status = workDetail['Status']?.toLowerCase() ?? '';
-
-
-      final deadline = workDetail['deadline'] != null
-          ? (workDetail['deadline'] is Timestamp
-          ? (workDetail['deadline'] as Timestamp).toDate()
-          : workDetail['deadline'] as DateTime?)
-          : null;
+      final deadline = (workDetail['deadline'] as Timestamp?)?.toDate();
 
       final searchMatch = workTitle.contains(searchQuery.toLowerCase()) ||
           department.contains(searchQuery.toLowerCase()) ||
@@ -184,134 +317,15 @@ class _hmmState extends State<Workdetails2> {
     }).toList();
   }
 
-
   void applyFiltersAndUpdate() {
     setState(() {
       filteredDocs = applyFilters(workDetailsList);
     });
   }
 
-  void deleteWorkDetail(String workDetailId) async {
-    var connectivityResult = await Connectivity().checkConnectivity();
-    if (connectivityResult == ConnectivityResult.none) {
-
-      await workDetailsBox.delete(workDetailId);
-      setState(() {
-        workDetailsList.removeWhere((detail) => detail['id'] == workDetailId);
-        filteredDocs = applyFilters(workDetailsList);
-      });
-    } else {
-
-      _firestore.collection('workDetails').doc(workDetailId).delete();
-      getData();
-    }
-  }
-
-  Future<void> saveWorkDetail({Map<String, dynamic>? workDetail}) async {
-    final String workId = workDetail != null && workDetail.containsKey("id")
-        ? workDetail["id"]
-        : Uuid().v4();
-
-    final data = {
-      'id': workId,
-      'title': titleController.text,
-      'description': descriptionController.text,
-      'Department': departmentController.text,
-      'Status': statusController.text,
-      'Priority': priorityController.text,
-      'Progressupdates': progressController.text,
-      'StartDate': Timestamp.fromDate(startDate!),
-      'deadline': Timestamp.fromDate(deadline!),
-      'AssignedTo': selectedEmployeeName,
-      'AssignedtoUid': selectedEmployeeUid,
-    };
-
-    try {
-      var connectivityResult = await Connectivity().checkConnectivity();
-      if (connectivityResult == ConnectivityResult.none) {
-
-        final workDetails = WorkDetails.fromMap(data);
-        await workDetailsBox.put(workId, workDetails);
-        setState(() {
-          workDetailsList.add(data);
-          filteredDocs = applyFilters(workDetailsList);
-          getData();
-        });
-      } else {
-
-        final workDetailsRef = FirebaseFirestore.instance.collection('workDetails');
-        if (workDetail != null) {
-          await workDetailsRef.doc(workId).update(data);
-        } else {
-          await workDetailsRef.doc(workId).set(data);
-        }
-
-        await syncHiveToFirestore();
-      }
-    } catch (e) {
-      print("Error saving work detail: $e");
-    }
-
-
-      Navigator.pop(context);
-
-  }
-
-  Future<void> syncHiveToFirestore() async {
-    final workDetailsRef = FirebaseFirestore.instance.collection('workDetails');
-    final hiveData = workDetailsBox.values.toList();
-
-    for (var workDetail in hiveData) {
-      await workDetailsRef.doc(workDetail.id).set(workDetail.toMap());
-    }
-    await workDetailsBox.clear();
-  }
-
-
-
-  void initializeWorkDetail(Map<String, dynamic>? workDetail) {
-    titleController.text = workDetail?['title'] ?? '';
-    descriptionController.text = workDetail?['description'] ?? '';
-    departmentController.text = workDetail?['Department'] ?? '';
-    statusController.text = workDetail?['Status'] ?? '';
-    priorityController.text = workDetail?['Priority'] ?? '';
-    progressController.text = workDetail?['Progressupdates'].toString() ?? '';
-
-    selectedEmployeeUid = workDetail?['AssignedtoUid'];
-    selectedEmployeeName = workDetail?['Assignedto'];
-
-    startDate = workDetail?['StartDate'] is Timestamp
-        ? (workDetail?['StartDate'] as Timestamp).toDate()
-        : DateTime.now();
-
-    deadline = workDetail?['deadline'] is Timestamp
-        ? (workDetail?['deadline'] as Timestamp).toDate()
-        : DateTime.now();
-  }
-  StreamSubscription? connectivitySubscription;
-  Future<bool> checkInternetConnection() async {
-    ConnectivityResult result = await Connectivity().checkConnectivity();
-    return result != ConnectivityResult.none;
-  }
-  Future<void> queueDeletedData(String workId) async {
-    final deletedBox = await Hive.openBox<String>('deletedWorkDetails');
-    await deletedBox.put(workId, workId);
-  }
-  Future<void> syncDeletedData() async {
-    bool isOnline = await checkInternetConnection();
-    if (!isOnline) return;
-
-    final deletedBox = await Hive.openBox<String>('deletedWorkDetails');
-    final workDetailsRef = FirebaseFirestore.instance.collection('workDetails');
-
-    for (var key in deletedBox.keys) {
-      try {
-        await workDetailsRef.doc(key).delete();
-        await deletedBox.delete(key);
-      } catch (e) {
-        print("Error syncing deleted work detail: $e");
-      }
-    }
+  void deleteWorkDetail(String workDetailId) {
+    _firestore.collection('workDetails').doc(workDetailId).delete();
+    getData();
   }
 
   @override
@@ -319,27 +333,16 @@ class _hmmState extends State<Workdetails2> {
     super.initState();
     initializeHive();
     getData();
-
+    checkNetworkAndSync();
     clearQuery();
-    connectivitySubscription = Connectivity().onConnectivityChanged.listen((ConnectivityResult result) {
-      if (result != ConnectivityResult.none) {
-        syncHiveToFirestore();
-      }
-    });
   }
 
-  @override
-  void dispose() {
-    titleController.dispose();
-    descriptionController.dispose();
-    departmentController.dispose();
-    statusController.dispose();
-    priorityController.dispose();
-    progressController.dispose();
-    connectivitySubscription?.cancel();
-    super.dispose();
+  void initializeHive() async {
+    if (!Hive.isAdapterRegistered(WorkDetailsAdapter().typeId)) {
+      Hive.registerAdapter(WorkDetailsAdapter());
+    }
+    await Hive.openBox<WorkDetails>('workDetails');
   }
-
 
   Widget build(BuildContext context) {
     return Scaffold(
@@ -396,15 +399,11 @@ class _hmmState extends State<Workdetails2> {
                 final progress = progressUpdates > 1.0
                     ? progressUpdates / 100
                     : progressUpdates;
-                final formatdated = Startdate != null
-                    ? DateFormat("yyyy-MM-dd").format(
-                    Startdate is Timestamp ? Startdate.toDate() : Startdate)
-                    : "N/A";
+                final formatdated =
+                DateFormat("yyyy-MM-dd").format(Startdate.toDate());
+                final deadlineformar =
+                DateFormat("yyyy-MM-dd").format(workDeadline.toDate());
 
-                final deadlineformat = workDeadline != null
-                    ? DateFormat("yyyy-MM-dd").format(
-                    workDeadline is Timestamp ? workDeadline.toDate() : workDeadline)
-                    : "N/A";
                 return Card(
                   margin: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
                   elevation: 5,
@@ -418,13 +417,13 @@ class _hmmState extends State<Workdetails2> {
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(Department?? ""),
+                        Text(Department),
                         Text(
-                          "Deadline: $deadlineformat",
+                          "Deadline: $deadlineformar",
                           style: TextStyle(fontSize: 12),
                         ),
                         Text(
-                          Status ?? "N/A",
+                          Status,
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             color: Status.toLowerCase() == 'completed'
@@ -444,28 +443,11 @@ class _hmmState extends State<Workdetails2> {
                         ? IconButton(
                       icon: Icon(Icons.delete),
                       onPressed: () async {
-                        bool isOnline = await checkInternetConnection();
-                        String workId = workDetail["id"];
-
-                        if (isOnline) {
-
-                          try {
-                            await _firestore.collection('workDetails').doc(workId).delete();
-                            await workDetailsBox.delete(workId);
-                          } catch (e) {
-                            print("Error deleting work detail: $e");
-                          }
-                        } else {
-
-                          await workDetailsBox.delete(workId);
-                          await queueDeletedData(workId);
-                        }
-getData();
-                        fetchFromHive();
+                        Navigator.of(context).pop(); // Close dialog
+                        handleDelete(workId, isOnline);
                       },
                     )
-
-                      : null,
+                        : null,
                     onTap: () {
                       role == "admin" || role =="teamlead"
                           ? showWorkDetailDialog(
@@ -474,16 +456,16 @@ getData();
                         context,
                         MaterialPageRoute(
                           builder: (context) => Formview(
-                            title: workDetail['title']?? "N/A",
-                            Description: workDetail['description']?? "N/A",
-                            Assignedto: workDetail['AssignedTo']?? "N/A",
+                            title: workDetail['title'],
+                            Description: workDetail['description'],
+                            Assignedto: workDetail['Assignedto'],
                             StartDate: formatdated ?? 'N/A',
-                            Enddate: deadlineformat ?? 'N/A',
+                            Enddate: deadlineformar ?? 'N/A',
                             ProgressUpdates:
-                            workDetail['Progressupdates'] ?? "N/A",
-                            Status: workDetail['Status']?? 'N/A',
-                            Priority: workDetail['Priority']?? "N/A",
-                            Department: workDetail['Department']?? "N/A",
+                            workDetail['Progressupdates'],
+                            Status: workDetail['Status'],
+                            Priority: workDetail['Priority'],
+                            Department: workDetail['Department'],
                           ),
                         ),
                       );
@@ -505,19 +487,36 @@ getData();
           : SizedBox(),
     );
   }
-  final TextEditingController titleController = TextEditingController();
-  final TextEditingController descriptionController = TextEditingController();
-  final TextEditingController departmentController = TextEditingController();
-  final TextEditingController statusController = TextEditingController();
-  final TextEditingController priorityController = TextEditingController();
-  final TextEditingController progressController = TextEditingController();
-  String? selectedEmployeeUid;
-  String? selectedEmployeeName;
-  DateTime? deadline;
-  String? workDetailId;
+
+
 
   void showWorkDetailDialog({Map<String, dynamic>? workDetail}) {
-initializeWorkDetail(workDetail);
+    final TextEditingController titleController =
+    TextEditingController(text: workDetail?['title'] ?? '');
+    final TextEditingController descriptionController =
+    TextEditingController(text: workDetail?['description'] ?? '');
+    final TextEditingController departmentController =
+    TextEditingController(text: workDetail?['Department'] ?? '');
+    final TextEditingController statusController =
+    TextEditingController(text: workDetail?['Status'] ?? '');
+    final TextEditingController priorityController =
+    TextEditingController(text: workDetail?['Priority'] ?? '');
+
+    final TextEditingController progressController = TextEditingController(
+        text: workDetail?['Progressupdates'].toString() ?? '');
+
+
+    String? selectedEmployeeUid = workDetail?['AssignedtoUid'];
+    String? selectedEmployeeName = workDetail?['Assignedto'];
+    DateTime? startDate = workDetail != null
+        ? (workDetail['StartDate'] as Timestamp).toDate()
+        : DateTime.now();
+    DateTime? deadline = workDetail != null
+        ? (workDetail['deadline'] as Timestamp).toDate()
+        : DateTime.now();
+    String? uid = workDetail?['uid'];
+    String? workDetailId = workDetail?['id'];
+
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -563,52 +562,18 @@ initializeWorkDetail(workDetail);
                       return null;
                     },
                   ),
-                  SizedBox(height: 4,),
-                  DropdownButtonFormField<String>(
-                    value: departmentController.text.isNotEmpty ? departmentController.text : null,
-                    decoration:  InputDecoration(
-labelText: "Department",
-                      labelStyle: TextStyle(
-                        color: Colors.grey[600],
-                        fontWeight: FontWeight.w500,
-                      ),
-                      hintStyle: TextStyle(
-                        color: Colors.grey[400],
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(15),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(15),
-                        borderSide: BorderSide(color: Colors.blue, width: 2),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(15),
-                        borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
-                      ),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-                      filled: true,
-                      fillColor: Colors.white,
-                      isDense: true,
-                    ),
-                    items: ["Software", "Finance", "Marketing", "Sales"]
-                        .map((department) => DropdownMenuItem(
-                      value: department,
-                      child: Text(department),
-                    ))
-                        .toList(),
-                    onChanged: (value) {
-                      departmentController.text = value!;
-                    },
+
+                  _buildTextField(
+                    controller: departmentController,
+                    label: "Department",
+                    hint: "Enter the department name",
                     validator: (value) {
-                      if (value == null || value.isEmpty) {
+                      if (value == null || value.trim().isEmpty) {
                         return 'Department is required.';
                       }
                       return null;
                     },
                   ),
-                  SizedBox(height:8),
 
                   _buildTextField(
                     controller: statusController,
@@ -621,54 +586,18 @@ labelText: "Department",
                       return null;
                     },
                   ),
-                  SizedBox(height: 4,),
-                  DropdownButtonFormField<String>(
-                    value: ["High", "Medium", "Low"].contains(priorityController.text)
-                        ? priorityController.text
-                        : null, // Ensure the value is valid
-                    decoration: InputDecoration(
-                      labelText: "Priority",
-                      labelStyle: TextStyle(
-                        color: Colors.grey[600],
-                        fontWeight: FontWeight.w500,
-                      ),
-                      hintStyle: TextStyle(
-                        color: Colors.grey[400],
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(15),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(15),
-                        borderSide: BorderSide(color: Colors.blue, width: 2),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(15),
-                        borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
-                      ),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-                      filled: true,
-                      fillColor: Colors.white,
-                      isDense: true,
-                    ),
-                    items: ["High", "Medium", "Low"]
-                        .map((priority) => DropdownMenuItem(
-                      value: priority,
-                      child: Text(priority),
-                    ))
-                        .toList(),
-                    onChanged: (value) {
-                      priorityController.text = value!;
-                    },
+
+                  _buildTextField(
+                    controller: priorityController,
+                    label: "Priority",
+                    hint: "Enter the priority (e.g., 'High', 'Medium', 'Low')",
                     validator: (value) {
-                      if (value == null || value.isEmpty) {
+                      if (value == null || value.trim().isEmpty) {
                         return 'Priority is required.';
                       }
                       return null;
                     },
-                  ),SizedBox(height: 4,),
-
+                  ),
 
                   _buildTextField(
                     controller: progressController,
@@ -733,7 +662,7 @@ labelText: "Department",
                     children: [
                       _buildDateSelector(
                         context,
-                        "Start Date" ,
+                        "Start Date",
                         startDate,
                             (selectedDate) {
                           setState(() {
@@ -785,10 +714,34 @@ labelText: "Department",
                       ElevatedButton(
                         onPressed: () async {
                           if (_formKey.currentState!.validate()) {
-                            saveWorkDetail(workDetail: workDetail);
+                            final data = {
+                              'id': workDetailId ?? Uuid().v4(),
+                              'title': titleController.text,
+                              'description': descriptionController.text,
+                              'Department': departmentController.text,
+                              'Status': statusController.text,
+                              'Priority': priorityController.text,
+                              'Progressupdates': progressController.text,
+                              'StartDate': Timestamp.fromDate(startDate!),
+                              'deadline': Timestamp.fromDate(deadline!),
+                              'Assignedto': selectedEmployeeName,
+                              'AssignedtoUid': selectedEmployeeUid,
+                            };
+
+                            try {
+                              if (workDetail == null) {
+                                addOrUpdateWorkDetails(data);
+                              } else {
+                                addOrUpdateWorkDetails(data, workDetailId: workDetailId);
+                              }
+
+                              getData();
+                              Navigator.pop(context);
+                            } catch (e) {
+                              print('Error saving work details: $e');
+                            }
                           }
                         },
-
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.black,
                         ),
@@ -797,7 +750,7 @@ labelText: "Department",
                           style: TextStyle(color: Colors.white),
                         ),
                       ),
-                    ] ,
+                    ],
                   ),
                 ],
               ),
@@ -807,7 +760,6 @@ labelText: "Department",
       ),
     );
   }
-
   void showFilterDialog() {
     showDialog(
       context: context,
@@ -1277,10 +1229,11 @@ Widget _buildTextField({
     ),
   );
 }
+
 Widget _buildDateSelector(
     BuildContext context,
     String label,
-    DateTime? selectedDate,
+    DateTime? initialDate,
     Function(DateTime) onDateSelected, {
       String? Function(DateTime?)? validator,
     }) {
@@ -1295,13 +1248,9 @@ Widget _buildDateSelector(
         onTap: () async {
           final DateTime? pickedDate = await showDatePicker(
             context: context,
-            initialDate: selectedDate ?? DateTime.now(), // Show selected date
-            firstDate: DateTime.now(), // Disable past dates
+            initialDate: initialDate ?? DateTime.now(),
+            firstDate: DateTime(2000),
             lastDate: DateTime(2100),
-            initialEntryMode: DatePickerEntryMode.calendarOnly, // Open calendar directly
-            helpText: "Select $label", // Show title
-            confirmText: "OK",
-            cancelText: "Cancel",
           );
           if (pickedDate != null) {
             onDateSelected(pickedDate);
@@ -1315,8 +1264,8 @@ Widget _buildDateSelector(
             borderRadius: BorderRadius.circular(15),
           ),
           child: Text(
-            selectedDate != null
-                ? "${selectedDate.day}/${selectedDate.month}/${selectedDate.year}"
+            initialDate != null
+                ? "${initialDate.day}/${initialDate.month}/${initialDate.year}"
                 : "Select Date",
             style: TextStyle(fontSize: 14, color: Colors.grey[600]),
           ),
@@ -1325,7 +1274,7 @@ Widget _buildDateSelector(
       if (validator != null)
         Builder(
           builder: (context) {
-            final errorText = validator(selectedDate);
+            final errorText = validator(initialDate);
             if (errorText != null) {
               return Padding(
                 padding: const EdgeInsets.only(top: 4),
