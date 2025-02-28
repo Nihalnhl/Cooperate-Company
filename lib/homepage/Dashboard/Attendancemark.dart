@@ -37,11 +37,39 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
     _fetchUserData();
     _fetchWorkTime();
     _fetchRequiredWorkTime();
+    _fetchHiveData();
     Connectivity().onConnectivityChanged.listen((ConnectivityResult result) {
       if (result != ConnectivityResult.none) {
         _syncDataToFirestore();
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _fetchHiveData() async {
+    var box = Hive.box<Attendance>('attendanceBox');
+    final now = DateTime.now();
+    final formattedDate = DateFormat('yyyy-MM-dd').format(now);
+    Attendance? attendance = box.get(formattedDate);
+
+    if (attendance != null) {
+      setState(() {
+        checkInTime = attendance.Login;
+        checkOutTime = attendance.Logout;
+        checkInMillis = attendance.checkInMillis;
+        workTime = attendance.workTime;
+        _isCheckedIn = attendance.checkInMillis != null && attendance.logoutMillis == null;
+      });
+
+      if (_isCheckedIn) {
+        _startTimer();
+      }
+    }
   }
 
   Future<void> _fetchUserData() async {
@@ -60,7 +88,6 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
       }
     }
   }
-
 
   Future<void> _fetchRequiredWorkTime() async {
     final User? user = _auth.currentUser;
@@ -151,23 +178,19 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
     final formattedDate = DateFormat('yyyy-MM-dd').format(now);
     final formattedTime = DateFormat('hh:mm a').format(now);
     final nowMillis = now.millisecondsSinceEpoch;
-    final querySnapshot = await _firestore
-        .collection('Attendance')
-        .where('UserId', isEqualTo: _uid)
-        .where('Date', isEqualTo: formattedDate)
-        .get();
 
-    if (querySnapshot.docs.isNotEmpty) {
-      final doc = querySnapshot.docs.first;
-      final data = doc.data();
-
-      if (data['CheckInTime'] != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('You have already checked in today.')),
-        );
-        return;
-      }
+    if (mounted) {
+      setState(() {
+        checkInTime = formattedTime;
+        checkOutTime = null;
+        checkInMillis = nowMillis;
+        workTime = 0;
+        _isCheckedIn = true;
+      });
     }
+
+    _startTimer();
+
     var box = Hive.box<UserProfile>('profileBox');
     UserProfile? userProfile = box.get(_uid);
 
@@ -180,9 +203,9 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
 
     var attendanceBox = Hive.box<Attendance>('attendanceBox');
     Attendance attendance = Attendance(
-      userId: _uid!,
-      date: formattedDate,
-      login: formattedTime,
+      UserId: _uid!,
+      Date: formattedDate,
+      Login: formattedTime,
       checkInMillis: nowMillis,
       workTime: 0,
       isSynced: false,
@@ -191,51 +214,14 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
     );
 
     attendanceBox.put(formattedDate, attendance);
-    print(" Check-in data saved to Hive: ${attendance.toJson()}");
-
-    setState(() {
-      checkInTime = formattedTime;
-      checkOutTime = null;
-      checkInMillis = nowMillis;
-      workTime = 0;
-      _isCheckedIn = true;
-    });
-
-    _startTimer();
+    print("Check-in data saved to Hive: ${attendance.toJson()}");
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Checked in at $formattedTime')),
     );
 
     _syncDataToFirestore();
-
-    // final docRef = await _firestore.collection('Attendance').add({
-    //   'UserId': _uid,
-    //   'name': _creatorName,
-    //   'role': _creatorRole,
-    //   'Date': formattedDate,
-    //   'Login': formattedTime,
-    //   'CheckInTime': nowMillis,
-    //   'Logout': null,
-    //   'LogoutTime': null,
-    //   'WorkTime': 0,
-    // });
-
-    // setState(() {
-    //   _currentAttendanceId = docRef.id;
-    //   checkInTime = formattedTime;
-    //   checkOutTime = null;
-    //   checkInMillis = nowMillis;
-    //   workTime = 0;
-    //   _isCheckedIn = true;
-    // });
-
-    _startTimer();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Checked in at $formattedTime')),
-    );
   }
-
 
   Future<void> _syncDataToFirestore() async {
     if (_uid == null) return;
@@ -249,29 +235,27 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
           var querySnapshot = await _firestore
               .collection('Attendance')
               .where('UserId', isEqualTo: _uid)
-              .where('Date', isEqualTo: attendance.date)
+              .where('Date', isEqualTo: attendance.Date)
               .get();
 
           if (querySnapshot.docs.isNotEmpty) {
-
             await _firestore
                 .collection('Attendance')
                 .doc(querySnapshot.docs.first.id)
                 .update({
-              'Logout': attendance.logout,
+              'Logout': attendance.Logout,
               'LogoutTime': attendance.logoutMillis,
               'WorkTime': attendance.workTime,
               'name': attendance.name,
               'role': attendance.role,
             });
           } else {
-
             await _firestore.collection('Attendance').add({
-              'UserId': attendance.userId,
-              'Date': attendance.date,
-              'Login': attendance.login,
+              'UserId': attendance.UserId,
+              'Date': attendance.Date,
+              'Login': attendance.Login,
               'CheckInTime': attendance.checkInMillis,
-              'Logout': attendance.logout,
+              'Logout': attendance.Logout,
               'LogoutTime': attendance.logoutMillis,
               'WorkTime': attendance.workTime,
               'name': attendance.name,
@@ -287,8 +271,18 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
         }
       }
     }
+
+    _clearHiveData();
+    _fetchWorkTime();
   }
 
+  Future<void> _clearHiveData() async {
+    var box = Hive.box<Attendance>('attendanceBox');
+    final now = DateTime.now();
+    final formattedDate = DateFormat('yyyy-MM-dd').format(now);
+    await box.delete(formattedDate);
+    print("Hive data cleared for date: $formattedDate");
+  }
 
   Future<void> _recordCheckOut() async {
     final now = DateTime.now();
@@ -309,7 +303,7 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
       Attendance? attendance = box.get(DateFormat('yyyy-MM-dd').format(now));
 
       if (attendance != null) {
-        attendance.logout = formattedTime;
+        attendance.Logout = formattedTime;
         attendance.logoutMillis = nowMillis;
         attendance.workTime = workTime;
         attendance.isSynced = false;
@@ -337,24 +331,6 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
         );
         return;
       }
-
-      // int totalWorkTime = workTime;
-      //
-      // await _firestore.collection('Attendance').doc(doc.id).update({
-      //   'Logout': formattedTime,
-      //   'LogoutTime': nowMillis,
-      //   'WorkTime': totalWorkTime,
-      // });
-      //
-      // _stopTimer();
-      // setState(() {
-      //   _isCheckedIn = false;
-      //   checkOutTime = formattedTime;
-      // });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Checked out at $formattedTime')),
-      );
     }
   }
 
@@ -364,11 +340,7 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
     return "${twoDigits(duration.inHours)}:${twoDigits(duration.inMinutes.remainder(60))}:${twoDigits(duration.inSeconds.remainder(60))}";
   }
 
-  @override
-  void dispose() {
-    _stopTimer();
-    super.dispose();
-  }
+
 
   double get _progressValue {
     return (workTime / _requiredWorkTime).clamp(0.0, 1.0);
@@ -523,7 +495,7 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
                               ],
                             ),
                           ),
-                         ),
+                        ),
                         const SizedBox(height: 16),
                         Card(
                           elevation: 1,

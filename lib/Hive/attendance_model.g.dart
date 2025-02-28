@@ -18,10 +18,10 @@ class AttendanceAdapter extends TypeAdapter<Attendance> {
     };
     return Attendance(
       id: fields[0] as String?,
-      userId: fields[1] as String,
-      date: fields[2] as String,
-      login: fields[3] as String?,
-      logout: fields[4] as String?,
+      UserId: fields[1] as String,
+      Date: fields[2] as String,
+      Login: fields[3] as String?,
+      Logout: fields[4] as String?,
       checkInMillis: fields[5] as int?,
       logoutMillis: fields[6] as int?,
       workTime: fields[7] as int,
@@ -38,13 +38,13 @@ class AttendanceAdapter extends TypeAdapter<Attendance> {
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
-      ..write(obj.userId)
+      ..write(obj.UserId)
       ..writeByte(2)
-      ..write(obj.date)
+      ..write(obj.Date)
       ..writeByte(3)
-      ..write(obj.login)
+      ..write(obj.Login)
       ..writeByte(4)
-      ..write(obj.logout)
+      ..write(obj.Logout)
       ..writeByte(5)
       ..write(obj.checkInMillis)
       ..writeByte(6)

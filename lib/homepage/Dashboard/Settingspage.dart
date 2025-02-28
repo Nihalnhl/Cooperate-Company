@@ -96,7 +96,7 @@ class _SettingspageState extends State<Settingspage> {
                 leading: Icon(Icons.password),
                 onTap: () {
                   Navigator.push(context,
-                      MaterialPageRoute(builder: (context) => changePass()));
+                      MaterialPageRoute(builder: (context) => ChangePass()));
                 },
               ),
               ListTile(

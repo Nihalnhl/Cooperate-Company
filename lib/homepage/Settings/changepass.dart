@@ -1,49 +1,58 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
-class changePass extends StatefulWidget {
-  const changePass({super.key});
+class ChangePass extends StatefulWidget {
+  const ChangePass({super.key});
 
   @override
-  State<changePass> createState() => _changePassState();
+  State<ChangePass> createState() => _ChangePassState();
 }
-bool isLoad=false;
 
-class _changePassState extends State<changePass> {
-
+class _ChangePassState extends State<ChangePass> {
   final _formKey = GlobalKey<FormState>();
-  TextEditingController oldpass = TextEditingController();
-  TextEditingController newpass = TextEditingController();
-  void Pass(String oldpass, String newpass) async {
-    if (_formKey.currentState?.validate() ?? false) {
-      User user = FirebaseAuth.instance.currentUser!;
-      AuthCredential cred =
-      EmailAuthProvider.credential(email: user.email!, password: oldpass);
+  TextEditingController oldPass = TextEditingController();
+  TextEditingController newPass = TextEditingController();
+  bool isLoading = false;
 
+  Future<bool> isOnline() async {
+    var connectivityResult = await Connectivity().checkConnectivity();
+    return connectivityResult != ConnectivityResult.none;
+  }
+
+  void changePassword(String oldPassword, String newPassword) async {
+    if (_formKey.currentState?.validate() ?? false) {
+      if (!await isOnline()) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("No internet connection. Please try again later.")),
+        );
+        return;
+      }
+
+      User user = FirebaseAuth.instance.currentUser!;
+      AuthCredential credential = EmailAuthProvider.credential(
+          email: user.email!, password: oldPassword);
 
       try {
         setState(() {
-          isLoad = true;
+          isLoading = true;
         });
-        await user!.reauthenticateWithCredential(cred);
-        await user.updatePassword(newpass);
+
+        await user.reauthenticateWithCredential(credential);
+        await user.updatePassword(newPassword);
+
         if (mounted) {
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text("Succesfully Changed")));
+              SnackBar(content: Text("Successfully changed password.")));
         }
-        setState(() {
-          isLoad = false;
-        });
-
-        return null;
       } catch (e) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("incorrect Password")));
-        print(e);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Incorrect password or an error occurred.")),
+        );
+      } finally {
         setState(() {
-          isLoad = false;
+          isLoading = false;
         });
       }
     }
@@ -58,42 +67,29 @@ class _changePassState extends State<changePass> {
         title: Text("Change Password"),
       ),
       body: Form(
-        key:   _formKey,
+        key: _formKey,
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.start,
           children: [
-            SizedBox(
-              height: 20,
-            ),
-            Image.asset(
-              "assets/passa.png",
-              scale: 3,
-            ),
-            SizedBox(
-              height: 20,
-            ),
+            SizedBox(height: 20),
+            Image.asset("assets/passa.png", scale: 3),
+            SizedBox(height: 20),
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: TextFormField(
-
                 obscureText: true,
-                controller: oldpass,
+                controller: oldPass,
                 decoration: InputDecoration(
                   fillColor: Colors.grey.shade50,
                   filled: true,
-                  border:
-                      OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                   hintText: 'Enter Current Password',
                 ),
               ),
             ),
-            SizedBox(
-              height: 5,
-            ),
+            SizedBox(height: 5),
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: TextFormField(
-
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Please enter a password';
@@ -103,39 +99,28 @@ class _changePassState extends State<changePass> {
                   }
                   return null;
                 },
-
                 obscureText: true,
-                controller: newpass,
+                controller: newPass,
                 decoration: InputDecoration(
                   fillColor: Colors.grey.shade50,
                   filled: true,
-                  border:
-                      OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                   hintText: 'Enter New Password',
-
                 ),
-
               ),
             ),
-            SizedBox(
-              height: 5,
-            ),
+            SizedBox(height: 5),
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: ElevatedButton(
-                  onPressed: () {
-                    Pass(oldpass.text, newpass.text);
-                  },
-                  child: isLoad? Container(
-                    child: CircularProgressIndicator(
-                      color: Colors.blue,
-                      strokeWidth: 2,
-                    ),
-                  ):Text(
-                    "Change Password",
-                    style: TextStyle(color: Colors.blue),
-                  )),
-            )
+                onPressed: () {
+                  changePassword(oldPass.text, newPass.text);
+                },
+                child: isLoading
+                    ? CircularProgressIndicator(color: Colors.blue, strokeWidth: 2)
+                    : Text("Change Password", style: TextStyle(color: Colors.blue)),
+              ),
+            ),
           ],
         ),
       ),

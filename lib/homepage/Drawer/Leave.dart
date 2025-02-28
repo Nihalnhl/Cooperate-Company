@@ -23,7 +23,6 @@ class _LeaveState extends State<Leave> {
   TextEditingController _endDateController = TextEditingController();
   final LeaveRequestService leaveRequestService = LeaveRequestService();
   final ConnectivityService connectivityService = ConnectivityService();
-
   String searchQuery = '';
   DateTime? filterStartDate;
   DateTime? filterEndDate;
@@ -41,11 +40,17 @@ class _LeaveState extends State<Leave> {
   bool isOffline = false;
   final pendingStatusUpdatesBox =
       Hive.openBox<Map<String, dynamic>>('pendingStatusUpdatesBox');
+
   @override
   void initState() {
     super.initState();
     initialize();
     getData();
+  }
+
+  Future<bool> checkInternetConnection() async {
+    ConnectivityResult result = await Connectivity().checkConnectivity();
+    return result != ConnectivityResult.none;
   }
 
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
@@ -69,7 +74,7 @@ class _LeaveState extends State<Leave> {
           await syncPendingDeletions();
           await syncOfflineDataToFirestore();
           await getDataFromFirestore();
-await syncPendingStatusUpdates();
+          await syncPendingStatusUpdates();
           if (mounted) {
             setState(() {});
           }
@@ -82,7 +87,6 @@ await syncPendingStatusUpdates();
     final leaveRequestBox =
         await Hive.openBox<LeaveRequest>('leaveRequestsBox');
     final leaveRequest = leaveRequestBox.get(leaveRequestId);
-
     if (leaveRequest != null) {
       leaveRequest.status = 'Approved';
       await leaveRequestBox.put(leaveRequestId, leaveRequest);
@@ -104,7 +108,6 @@ await syncPendingStatusUpdates();
     final leaveRequestBox =
         await Hive.openBox<LeaveRequest>('leaveRequestsBox');
     final leaveRequest = leaveRequestBox.get(leaveRequestId);
-
     if (leaveRequest != null) {
       leaveRequest.status = 'Rejected';
       await leaveRequestBox.put(leaveRequestId, leaveRequest);
@@ -174,7 +177,6 @@ await syncPendingStatusUpdates();
       try {
         final documentSnapshot =
             await FirebaseFirestore.instance.collection('user').doc(uid).get();
-
         if (documentSnapshot.exists) {
           final data = documentSnapshot.data() as Map<String, dynamic>?;
           if (mounted) {
@@ -201,10 +203,7 @@ await syncPendingStatusUpdates();
     }
   }
 
-  Future<bool> checkInternetConnection() async {
-    ConnectivityResult result = await Connectivity().checkConnectivity();
-    return result != ConnectivityResult.none;
-  }
+
 
   Future<void> syncOfflineDataToFirestore() async {
     try {
@@ -349,8 +348,22 @@ await syncPendingStatusUpdates();
   void saveLeaveRequest() async {
     final User? user = auth.currentUser;
     final uid = user!.uid;
+
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
+      final existingLeaveRequest = await FirebaseFirestore.instance
+          .collection('leave_records')
+          .where('start_date', isEqualTo: startDate)
+          .get();
+      if (existingLeaveRequest.docs.isNotEmpty && leaveRequestId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text(
+                  'You have already submitted a leave request for this day.')),
+        );
+        return;
+      }
+
       FirebaseFirestore.instance
           .collection('user')
           .doc(uid)
@@ -517,10 +530,10 @@ await syncPendingStatusUpdates();
                 : data['end_date'] as DateTime?)
             : null;
         final startMonth = startDate != null
-            ? DateFormat('dd MMM yyyy').format(startDate).toLowerCase()
+            ? DateFormat('dd MMMM yyyy').format(startDate).toLowerCase()
             : '';
         final endMonth = endDate != null
-            ? DateFormat('dd MMM yyyy').format(endDate).toLowerCase()
+            ? DateFormat('dd MMMM yyyy').format(endDate).toLowerCase()
             : '';
 
         return name.contains(searchQuery.toLowerCase()) ||
@@ -824,14 +837,15 @@ await syncPendingStatusUpdates();
                                             });
                                           } else {
                                             await approveLeaveRequestOffline(
-                                                workDetail['id']).then((value) {
+                                                    workDetail['id'])
+                                                .then((value) {
                                               ScaffoldMessenger.of(context)
                                                   .showSnackBar(
                                                 SnackBar(
                                                     content: Text(
                                                         'Approved Offline'),
                                                     backgroundColor:
-                                                    Colors.green),
+                                                        Colors.green),
                                               );
                                               getData();
                                             }).catchError((error) {
@@ -841,7 +855,7 @@ await syncPendingStatusUpdates();
                                                     content: Text(
                                                         'Failed to reject leave request: $error'),
                                                     backgroundColor:
-                                                    Colors.red),
+                                                        Colors.red),
                                               );
                                             });
                                           }
@@ -885,14 +899,15 @@ await syncPendingStatusUpdates();
                                             });
                                           } else {
                                             await rejectLeaveRequestOffline(
-                                                workDetail['id']).then((value) {
+                                                    workDetail['id'])
+                                                .then((value) {
                                               ScaffoldMessenger.of(context)
                                                   .showSnackBar(
                                                 SnackBar(
                                                     content: Text(
                                                         'Rejected offline!'),
                                                     backgroundColor:
-                                                    Colors.red),
+                                                        Colors.red),
                                               );
                                               getData();
                                             }).catchError((error) {
@@ -902,7 +917,7 @@ await syncPendingStatusUpdates();
                                                     content: Text(
                                                         'Failed to reject leave request: $error'),
                                                     backgroundColor:
-                                                    Colors.red),
+                                                        Colors.red),
                                               );
                                             });
                                           }
@@ -926,8 +941,11 @@ await syncPendingStatusUpdates();
                                             .collection('leave_records')
                                             .doc(leaveRequestId)
                                             .delete();
-                                        final leaveRequestBox = await Hive.openBox<LeaveRequest>('leaveRequestsBox');
-                                        await leaveRequestBox.delete(leaveRequestId)
+                                        final leaveRequestBox =
+                                            await Hive.openBox<LeaveRequest>(
+                                                'leaveRequestsBox');
+                                        await leaveRequestBox
+                                            .delete(leaveRequestId)
                                             .then((value) {
                                           ScaffoldMessenger.of(context)
                                               .showSnackBar(

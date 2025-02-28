@@ -1,9 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dropdown_search/dropdown_search.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:hive/hive.dart';
 import 'package:syncfusion_flutter_datepicker/datepicker.dart';
+
+import '../../Hive/attendance_model.dart';
 
 class LoginLogoutScreen1 extends StatefulWidget {
   @override
@@ -17,7 +21,7 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
   List<String>? selectedEmployee;
   int index = 1;
   Query? query;
-  List<QueryDocumentSnapshot>? searchResults;
+  List<Map<String, dynamic>>? searchResults;
   final FirebaseAuth auth = FirebaseAuth.instance;
   String? role;
   String? userid;
@@ -27,16 +31,23 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
   bool isLoadingMore = false;
   bool hasMoreData = true;
   final int itemsPerPage = 20;
-  List<QueryDocumentSnapshot> currentData = [];
+  List<Map<String, dynamic>> currentData = [];
   ScrollController _scrollController = ScrollController();
   TextEditingController searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    checkConnectivity();
+    Connectivity().onConnectivityChanged.listen((ConnectivityResult result) {
+      setState(() {
+        isOnline = result != ConnectivityResult.none;
+      });
+      getData();
+    });
     _scrollController.addListener(() {
       if (_scrollController.position.pixels ==
-              _scrollController.position.maxScrollExtent &&
+          _scrollController.position.maxScrollExtent &&
           !isLoadingMore) {
         if (hasMoreData) {
           loadMoreData();
@@ -45,7 +56,13 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
     });
     getData();
   }
-
+  bool isOnline = true;
+  Future<void> checkConnectivity() async {
+    var connectivityResult = await Connectivity().checkConnectivity();
+    setState(() {
+      isOnline = connectivityResult != ConnectivityResult.none;
+    });
+  }
   void loadMoreData() async {
     if (!hasMoreData || isLoadingMore) return;
     setState(() {
@@ -62,7 +79,7 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
     final snapshot = await baseQuery.get();
     if (snapshot.docs.isNotEmpty) {
       setState(() {
-        currentData.addAll(snapshot.docs);
+        currentData.addAll(snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList());
         lastDocument = snapshot.docs.last;
       });
     } else {
@@ -75,47 +92,78 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
     });
   }
 
-  void getData() {
-    final User? user = auth.currentUser;
-    final uid = user!.uid;
+  Future<void> getData() async {
 
-    FirebaseFirestore.instance
-        .collection('user')
-        .doc(uid)
-        .get()
-        .then((DocumentSnapshot docusnapshot) {
-      if (docusnapshot.exists) {
-        final data = docusnapshot.data() as Map<String, dynamic>?;
+    final Box<Attendance> attendanceBox = await Hive.openBox<Attendance>('attendanceBox');
+    final List<Attendance> offlineData = attendanceBox.values.toList();
+
+    if (mounted) {
+      setState(() {
+        currentData = offlineData.map((attendance) => attendance.toJson()).toList();
+        isLoading = false;
+        print("Hive Data: $currentData");
+      });
+    }
+
+    var connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult != ConnectivityResult.none) {
+      try {
+
+        final User? user = auth.currentUser;
+        final uid = user!.uid;
+        final userDoc = await FirebaseFirestore.instance.collection('user').doc(uid).get();
+        if (userDoc.exists) {
+          final data = userDoc.data() as Map<String, dynamic>?;
+          if (mounted) {
+            setState(() {
+              role = data!['role'];
+            });
+          }
+        } else {
+          print('User document does not exist in database');
+        }
+
+        final attendanceSnapshot = await FirebaseFirestore.instance.collection('Attendance').get();
+        final employeeNames = attendanceSnapshot.docs.map((doc) => doc['name'].toString()).toSet().toList();
         if (mounted) {
           setState(() {
-            role = data!['role'];
+            employees = employeeNames;
           });
         }
-      } else {
-        print('Document does not exist in database');
-        setState(() {
-          isLoading = false;
-        });
+
+        final snapshot = await FirebaseFirestore.instance
+            .collection('Attendance')
+            .orderBy('Date')
+            .limit(itemsPerPage)
+            .get();
+
+        if (mounted) {
+          setState(() {
+            currentData = snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
+            lastDocument = snapshot.docs.isNotEmpty ? snapshot.docs.last : null;
+          });
+        }
+
+        await attendanceBox.clear();
+        for (var doc in snapshot.docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final attendance = Attendance(
+            id: doc.id,
+            UserId: data['UserId'],
+            Date: data['Date'],
+            Login: data['Login'],
+            Logout: data['Logout'],
+            name: data['name'],
+            role: data['role'],
+          );
+          await attendanceBox.add(attendance);
+        }
+        print("Firestore Data stored in Hive");
+      } catch (error) {
+
+        print("Error fetching Firestore data: $error");
       }
-    });
-    FirebaseFirestore.instance.collection('Attendance').get().then((snapshot) {
-      final employeeNames =
-          snapshot.docs.map((doc) => doc['name'].toString()).toSet().toList();
-      setState(() {
-        employees = employeeNames;
-      });
-    });
-    FirebaseFirestore.instance
-        .collection('Attendance')
-        .orderBy('Date')
-        .limit(itemsPerPage)
-        .get()
-        .then((snapshot) {
-      setState(() {
-        currentData = snapshot.docs;
-        lastDocument = snapshot.docs.isNotEmpty ? snapshot.docs.last : null;
-      });
-    });
+    }
   }
 
   void updateQuery() {
@@ -141,18 +189,18 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
 
     baseQuery.get().then((snapshot) {
       setState(() {
-        currentData = snapshot.docs;
+        currentData = snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
         searchResults = searchText.isNotEmpty
-            ? currentData.where((doc) {
-                final name = doc['name'].toString().toLowerCase();
-                final date = doc['Date'].toString().toLowerCase();
-                final login = doc['Login'].toString().toLowerCase();
-                final logout = doc['Logout'].toString().toLowerCase();
-                return name.contains(searchText) ||
-                    date.contains(searchText) ||
-                    login.contains(searchText) ||
-                    logout.contains(searchText);
-              }).toList()
+            ? currentData.where((data) {
+          final name = data['name'].toString().toLowerCase();
+          final date = data['Date'].toString().toLowerCase();
+          final login = data['Login'].toString().toLowerCase();
+          final logout = data['Logout'].toString().toLowerCase();
+          return name.contains(searchText) ||
+              date.contains(searchText) ||
+              login.contains(searchText) ||
+              logout.contains(searchText);
+        }).toList()
             : currentData;
         hasMoreData = snapshot.docs.length == itemsPerPage;
         lastDocument = snapshot.docs.isNotEmpty ? snapshot.docs.last : null;
@@ -166,7 +214,6 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
     setState(() {
       searchText = value.toLowerCase();
     });
-
     Query baseQuery = FirebaseFirestore.instance.collection('Attendance');
     if (selectedDate != null && selectedDate!.contains(" to ")) {
       final dateRange = selectedDate!.split(' to ');
@@ -187,11 +234,11 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
     baseQuery = baseQuery.orderBy('Date', descending: false);
     baseQuery.get().then((snapshot) {
       setState(() {
-        searchResults = snapshot.docs.where((doc) {
-          final name = doc['name'].toString().toLowerCase();
-          final date = doc['Date'].toString().toLowerCase();
-          final login = doc['Login'].toString().toLowerCase();
-          final logout = doc['Logout'].toString().toLowerCase();
+        searchResults = snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList().where((data) {
+          final name = data['name'].toString().toLowerCase();
+          final date = data['Date'].toString().toLowerCase();
+          final login = data['Login'].toString().toLowerCase();
+          final logout = data['Logout'].toString().toLowerCase();
           return name.contains(searchText) ||
               date.contains(searchText) ||
               login.contains(searchText) ||
@@ -205,7 +252,7 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
 
   void preprocessFirestoreData() async {
     final attendanceDocs =
-        await FirebaseFirestore.instance.collection('Attendance').get();
+    await FirebaseFirestore.instance.collection('Attendance').get();
     for (var doc in attendanceDocs.docs) {
       final name = doc['name'] as String;
       final login = doc['Login'] as String;
@@ -269,7 +316,7 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
                             children: [
                               SfDateRangePicker(
                                 selectionMode:
-                                    DateRangePickerSelectionMode.range,
+                                DateRangePickerSelectionMode.range,
                                 onSelectionChanged:
                                     (DateRangePickerSelectionChangedArgs args) {
                                   if (args.value is PickerDateRange) {
@@ -277,12 +324,12 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
                                     String formattedStartDate =
                                         "${range.startDate!.year}-${range.startDate!.month.toString().padLeft(2, '0')}-${range.startDate!.day.toString().padLeft(2, '0')}";
                                     String formattedEndDate = range.endDate !=
-                                            null
+                                        null
                                         ? "${range.endDate!.year}-${range.endDate!.month.toString().padLeft(2, '0')}-${range.endDate!.day.toString().padLeft(2, '0')}"
                                         : "";
                                     setState(() {
                                       tempSelectedDateRange = formattedEndDate
-                                              .isNotEmpty
+                                          .isNotEmpty
                                           ? "$formattedStartDate to $formattedEndDate"
                                           : formattedStartDate;
                                     });
@@ -294,43 +341,43 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
                       SizedBox(height: 16),
                       (role == "admin" || role == "teamlead")
                           ? Text(
-                              "Select an Employee",
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 16),
-                            )
+                        "Select an Employee",
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 16),
+                      )
                           : SizedBox(),
                       SizedBox(height: 8),
                       (role == "admin" || role == "teamlead")
                           ? DropdownSearch<String>.multiSelection(
-                              popupProps: PopupPropsMultiSelection.menu(
-                                showSearchBox: true,
-                                searchFieldProps: TextFieldProps(
-                                  decoration: InputDecoration(
-                                    hintText: "Search Employees",
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    contentPadding: EdgeInsets.symmetric(
-                                        horizontal: 12, vertical: 10),
-                                  ),
-                                ),
+                        popupProps: PopupPropsMultiSelection.menu(
+                          showSearchBox: true,
+                          searchFieldProps: TextFieldProps(
+                            decoration: InputDecoration(
+                              hintText: "Search Employees",
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                              items: (filter, infiniteScrollProps) => employees,
-                              selectedItems: tempSelectedEmployees ?? [],
-                              decoratorProps: DropDownDecoratorProps(
-                                decoration: InputDecoration(
-                                  labelText: "Select Employees",
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
-                              ),
-                              onChanged: (List<String> selectedValues) {
-                                setState(() {
-                                  tempSelectedEmployees = selectedValues;
-                                });
-                              },
-                            )
+                              contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 10),
+                            ),
+                          ),
+                        ),
+                        items: (filter, infiniteScrollProps) => employees,
+                        selectedItems: tempSelectedEmployees ?? [],
+                        decoratorProps: DropDownDecoratorProps(
+                          decoration: InputDecoration(
+                            labelText: "Select Employees",
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                        onChanged: (List<String> selectedValues) {
+                          setState(() {
+                            tempSelectedEmployees = selectedValues;
+                          });
+                        },
+                      )
                           : SizedBox(),
                     ],
                   ),
@@ -384,6 +431,11 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
       },
     );
   }
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -402,92 +454,92 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
       ),
       body: Column(
         children: [
-          role == "admin" || role == "teamlead"
-              ? Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: TextField(
-                    focusNode: focus,
-                    onTapOutside: (_) => focus.unfocus(),
-                    onChanged: (value) {
-                      setState(() {
-                        searchText = value.toLowerCase();
-                      });
-                      if (searchText.isNotEmpty) {
-                        searchAndFilter(value);
-                      } else {
-                        updateQuery();
-                      }
-                    },
-                    decoration: InputDecoration(
-                      hintText: "Search...",
-                      prefixIcon: Icon(Icons.search, color: Colors.black),
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(30),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-                    ),
-                  ),
-                )
-              : SizedBox.shrink(),
+
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: TextField(
+              focusNode: focus,
+              onTapOutside: (_) => focus.unfocus(),
+              onChanged: (value) {
+                setState(() {
+                  searchText = value.toLowerCase();
+                });
+                if (searchText.isNotEmpty) {
+                  searchAndFilter(value);
+                } else {
+                  updateQuery();
+                }
+              },
+              decoration: InputDecoration(
+                hintText: "Search...",
+                prefixIcon: Icon(Icons.search, color: Colors.black),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(30),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding:
+                EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+              ),
+            ),
+          )
+          ,
           Expanded(
             child: searchResults != null
                 ? (searchResults!.isEmpty
-                    ? Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Image.asset(
-                            'assets/Noresult.png',
-                          ),
-                        ],
-                      )
-                    : ListView.builder(
-                        controller: _scrollController,
-                        itemCount:
-                            searchResults!.length + (isLoadingMore ? 1 : 0),
-                        itemBuilder: (context, index) {
-                          if (index < searchResults!.length) {
-                            final workDetail = searchResults![index];
-                            return buildCard(workDetail);
-                          } else {
-                            return Center(
-                                child: Padding(
-                              padding: const EdgeInsets.all(8.0),
-                              child: CircularProgressIndicator(),
-                            ));
-                          }
-                        },
-                      ))
+                ? Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Image.asset(
+                  'assets/Noresult.png',
+                ),
+              ],
+            )
                 : ListView.builder(
-                    controller: _scrollController,
-                    itemCount: currentData.length + (isLoadingMore ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      if (index < currentData.length) {
-                        final workDetail = currentData[index];
-                        return buildCard(workDetail);
-                      } else {
-                        return Center(
-                            child: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: CircularProgressIndicator(),
-                        ));
-                      }
-                    },
-                  ),
+              controller: _scrollController,
+              itemCount:
+              searchResults!.length + (isLoadingMore ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (index < searchResults!.length) {
+                  final workDetail = searchResults![index];
+                  return buildCard(workDetail);
+                } else {
+                  return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: CircularProgressIndicator(),
+                      ));
+                }
+              },
+            ))
+                : ListView.builder(
+              controller: _scrollController,
+              itemCount: currentData.length + (isLoadingMore ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (index < currentData.length) {
+                  final workDetail = currentData[index];
+                  return buildCard(workDetail);
+                } else {
+                  return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: CircularProgressIndicator(),
+                      ));
+                }
+              },
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget buildCard(QueryDocumentSnapshot workDetail) {
-    final name = workDetail['name'];
-    final login = workDetail['Login'];
-    final logout = workDetail['Logout'];
-    final date = workDetail['Date'];
+  Widget buildCard(Map<String, dynamic> workDetail) {
+    final name = workDetail['name'] ?? 'N/A';
+    final login = workDetail['Login'] ?? 'N/A';
+    final logout = workDetail['Logout'] ?? 'N/A';
+    final date = workDetail['Date'] ?? 'N/A';
 
     return Card(
       elevation: 8,
@@ -504,7 +556,6 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // if (role == "admin" || role == "teamlead")
               Padding(
                 padding: const EdgeInsets.only(bottom: 8.0),
                 child: Text(
@@ -518,8 +569,8 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
               ),
               Row(
                 children: [
-                  Icon(Icons.calendar_today,
-                      size: 20, color: Colors.blueAccent),
+                  Icon(
+                      Icons.calendar_today, size: 20, color: Colors.blueAccent),
                   SizedBox(width: 8),
                   Text(
                     "Date: $date",
@@ -547,22 +598,6 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
                     "Logout: $logout",
                     style: TextStyle(fontSize: 16, color: Colors.black87),
                   ),
-                  // TextButton.icon(
-                  //   onPressed: () {
-                  //     FirebaseFirestore.instance
-                  //         .collection('Attendance')s
-                  //         .doc(workDetail.id)
-                  //         .delete()
-                  //         .then((value) {
-                  //       getData();
-                  //     });
-                  //   },
-                  //   icon: Icon(Icons.delete,
-                  //       color: Colors.redAccent),
-                  //   label: Text('Cancel Request',
-                  //       style: TextStyle(
-                  //           color: Colors.redAccent)),
-                  // ),
                 ],
               ),
             ],
@@ -570,5 +605,4 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
         ),
       ),
     );
-  }
-}
+  }}

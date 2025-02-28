@@ -8,16 +8,16 @@ class Attendance extends HiveObject {
   String? id;
 
   @HiveField(1)
-  String userId;
+  String UserId;
 
   @HiveField(2)
-  String date;
+  String Date;
 
   @HiveField(3)
-  String? login;
+  String? Login;
 
   @HiveField(4)
-  String? logout;
+  String? Logout;
 
   @HiveField(5)
   int? checkInMillis;
@@ -43,10 +43,10 @@ class Attendance extends HiveObject {
 
   Attendance({
     this.id,
-    required this.userId,
-    required this.date,
-    this.login,
-    this.logout,
+    required this.UserId,
+    required this.Date,
+    this.Login,
+    this.Logout,
     this.checkInMillis,
     this.logoutMillis,
     this.workTime = 0,
@@ -55,10 +55,10 @@ class Attendance extends HiveObject {
   Map<String, dynamic> toJson() {
     return {
       "id": id,
-      "userId": userId,
-      "date": date,
-      "loginTime": login,
-      "logoutTime": logout,
+      "userId": UserId,
+      "Date": Date,
+      "Login": Login,
+      "Logout": Logout,
       "checkInMillis": checkInMillis,
       "logoutMillis": logoutMillis,
       "workTime": workTime,

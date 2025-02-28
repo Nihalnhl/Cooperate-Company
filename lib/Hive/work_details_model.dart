@@ -78,7 +78,7 @@ class WorkDetails {
       Progressupdates: map['Progressupdates'],
       startDate: map['StartDate'].toDate(),
       deadline: map['deadline'].toDate(),
-      AssignedTo: map['AssignedTo'],
+      AssignedTo: map['AssignedTo']?? "N/A",
     );
   }
 }

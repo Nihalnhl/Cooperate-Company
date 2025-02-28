@@ -55,12 +55,12 @@ class _BiometricLoginPageState extends State<BiometricLoginPage> {
         isLoading = true;
       });
 
-      final email = _emailController.text;
-      final password = _passController.text;
+      final email = _emailController.text.trim();
+      final password = _passController.text.trim();
 
       try {
         final userCredential =
-            await FirebaseAuth.instance.signInWithEmailAndPassword(
+        await FirebaseAuth.instance.signInWithEmailAndPassword(
           email: email,
           password: password,
         );
@@ -87,6 +87,30 @@ class _BiometricLoginPageState extends State<BiometricLoginPage> {
         } else {
           print('User not found after login.');
         }
+      } on FirebaseAuthException catch (e) {
+        String errorMessage = 'An error occurred. Please try again.';
+
+        if (e.code == 'user-not-found') {
+          errorMessage = 'No user found with this email.';
+        } else if (e.code == 'wrong-password' || e.message?.contains('auth credential is incorrect') == true) {
+          errorMessage = 'Incorrect email or password.';
+        } else if (e.code == 'too-many-requests') {
+          errorMessage = 'Too many failed attempts. Try again later.';
+        } else if (e.code == 'network-request-failed') {
+          errorMessage = 'No internet connection. Please try again later.';
+        } else {
+          errorMessage = e.message ?? 'An unexpected error occurred.';
+        }
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorMessage),
+
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
       } catch (e) {
         print('Error during login: $e');
       } finally {
@@ -98,6 +122,8 @@ class _BiometricLoginPageState extends State<BiometricLoginPage> {
       }
     }
   }
+
+
 
   Future<void> fetchAndStoreCompanyDetails() async {
     try {
@@ -209,7 +235,7 @@ class _BiometricLoginPageState extends State<BiometricLoginPage> {
         return WorkDetails.fromMap(data);
       }).toList();
 
-      await workDetailsBox.clear(); // Clear existing data before storing new data
+      await workDetailsBox.clear();
 
       for (var workDetail in workDetailsList) {
         await workDetailsBox.put(workDetail.id, workDetail);
@@ -223,29 +249,41 @@ class _BiometricLoginPageState extends State<BiometricLoginPage> {
 
   Future<void> fetchAndStoreAttendance() async {
     try {
-      final QuerySnapshot snapshot = await FirebaseFirestore.instance
+      final Box<Attendance> attendanceBox = await Hive.openBox<Attendance>('attendanceBox');
+
+      final snapshot = await FirebaseFirestore.instance
           .collection('Attendance')
-          .orderBy('Date', descending: false)
+          .orderBy('Date')
           .get();
 
-      final Box<Attendance> attendanceBox =
-          await Hive.openBox<Attendance>('attendanceBox');
-      attendanceBox.clear();
-      for (var doc in snapshot.docs) {
-        attendanceBox.add(Attendance(
-          name: doc['name'],
-          date: doc['Date'],
-          login: doc['Login'],
-          logout: doc['Logout'],
-          userId: doc["userId"],
-          role: doc["role"],
-        ));
+      List<Attendance> attendanceList = snapshot.docs.map((doc) {
+        final data = doc.data();
+        return Attendance(
+          id: doc.id,
+          UserId: data['userId'] ?? '',
+          Date: data['Date'] ?? '',
+          Login: data['Login'],
+          Logout: data['Logout'],
+          checkInMillis: data['checkInMillis'],
+          logoutMillis: data['logoutMillis'],
+          workTime: data['workTime'] ?? 0,
+          isSynced: true,
+          name: data['name'],
+          role: data['role'] ?? '',
+        );
+      }).toList();
+
+      await attendanceBox.clear();
+      for (var attendance in attendanceList) {
+        await attendanceBox.put(attendance.id, attendance);
       }
-      print("Attendance data fetched and stored in Hive.");
-    } catch (error) {
-      print('Failed to fetch and store Attendance records: $error');
+
+      print("Attendance data stored in Hive successfully.");
+    } catch (e) {
+      print("Error fetching and storing attendance: $e");
     }
   }
+
 
   Future<void> authentication() async {
     try {
