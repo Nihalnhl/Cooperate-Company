@@ -17,6 +17,9 @@ class _LeaveState extends State<Leave> {
   List<Map<String, dynamic>> currentData = [];
   final FirebaseAuth auth = FirebaseAuth.instance;
   final _formKey = GlobalKey<FormState>();
+  final GlobalKey<FormFieldState> _startDateKey = GlobalKey<FormFieldState>();
+  final GlobalKey<FormFieldState> _endDateKey = GlobalKey<FormFieldState>();
+
   final TextEditingController reasonController = TextEditingController();
   TextEditingController searchController = TextEditingController();
   TextEditingController _startDateController = TextEditingController();
@@ -46,11 +49,6 @@ class _LeaveState extends State<Leave> {
     super.initState();
     initialize();
     getData();
-  }
-
-  Future<bool> checkInternetConnection() async {
-    ConnectivityResult result = await Connectivity().checkConnectivity();
-    return result != ConnectivityResult.none;
   }
 
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
@@ -203,7 +201,10 @@ class _LeaveState extends State<Leave> {
     }
   }
 
-
+  Future<bool> checkInternetConnection() async {
+    ConnectivityResult result = await Connectivity().checkConnectivity();
+    return result != ConnectivityResult.none;
+  }
 
   Future<void> syncOfflineDataToFirestore() async {
     try {
@@ -351,27 +352,26 @@ class _LeaveState extends State<Leave> {
 
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
-      final existingLeaveRequest = await FirebaseFirestore.instance
-          .collection('leave_records')
-          .where('start_date', isEqualTo: startDate)
-          .get();
-      if (existingLeaveRequest.docs.isNotEmpty && leaveRequestId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text(
-                  'You have already submitted a leave request for this day.')),
-        );
-        return;
-      }
 
-      FirebaseFirestore.instance
-          .collection('user')
-          .doc(uid)
-          .get()
-          .then((doc) async {
+      // final existingLeaveRequest = await FirebaseFirestore.instance
+      //     .collection('leave_records')
+      //     .where('user_id', isEqualTo: uid)
+      //     .where('start_date', isLessThanOrEqualTo: endDate)
+      //     .where('end_date', isGreaterThanOrEqualTo: startDate)
+      //     .get();
+      //
+      // if (existingLeaveRequest.docs.isNotEmpty && leaveRequestId == null) {
+      //   ScaffoldMessenger.of(context).showSnackBar(
+      //     const SnackBar(
+      //         content: Text(
+      //             'You have already submitted a leave request this date .')),
+      //   );
+      //   return;
+      // }
+
+      FirebaseFirestore.instance.collection('user').doc(uid).get().then((doc) async {
         if (doc.exists) {
           final userName = doc['name'];
-
           final newLeaveRequestId = leaveRequestId ?? uuid.v4();
 
           final leaveData = {
@@ -409,11 +409,13 @@ class _LeaveState extends State<Leave> {
               userId: uid,
               userName: userName,
             );
+
             if (leaveRequestId == null) {
               await addLeaveRequestToHive(leaveRequest);
             } else {
               await updateLeaveRequestInHive(leaveRequest);
             }
+
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Leave request saved locally')),
             );
@@ -423,6 +425,7 @@ class _LeaveState extends State<Leave> {
       });
     }
   }
+
 
   Future<void> saveToHive(List<LeaveRequest> leaveRequests) async {
     final leaveRequestBox =
@@ -575,6 +578,20 @@ class _LeaveState extends State<Leave> {
     }
     return filteredData;
   }
+  List<QueryDocumentSnapshot> existingLeaveRequests = [];
+
+  void fetchExistingLeaveRequests() async {
+    final User? user = auth.currentUser;
+    final uid = user!.uid;
+
+    final querySnapshot = await FirebaseFirestore.instance
+        .collection('leave_records')
+        .where('user_id', isEqualTo: uid)
+        .get();
+
+    existingLeaveRequests = querySnapshot.docs;
+  }
+
 
   void clearFilters() {
     setState(() {
@@ -1171,6 +1188,7 @@ class _LeaveState extends State<Leave> {
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8.0),
                     child: TextFormField(
+                        key: _startDateKey,
                       autovalidateMode: AutovalidateMode.onUserInteraction,
                       decoration: InputDecoration(
                         labelText: 'Start Date',
@@ -1179,31 +1197,53 @@ class _LeaveState extends State<Leave> {
                         ),
                         prefixIcon: Icon(Icons.calendar_today),
                       ),
-                      onTap: () async {
-                        final DateTime? selectedDate = await showDatePicker(
-                          context: context,
-                          initialDate: startDate ?? DateTime.now(),
-                          firstDate: DateTime.now(),
-                          lastDate: DateTime(2101),
-                        );
-                        if (selectedDate != null) {
-                          setState(() {
-                            startDate = selectedDate;
-                            _startDateController.text =
-                                DateFormat('yyyy-MM-dd').format(startDate!);
-                          });
-                        }
-                      },
-                      readOnly: true,
+                        onTap: () async {
+                           fetchExistingLeaveRequests();
+
+                          final DateTime? selectedDate = await showDatePicker(
+                            context: context,
+                            initialDate: startDate ?? DateTime.now(),
+                            firstDate: DateTime.now(),
+                            lastDate: DateTime(2101),
+                          );
+
+                          if (selectedDate != null) {
+                            setState(() {
+                              startDate = selectedDate;
+                              _startDateController.text = DateFormat('yyyy-MM-dd').format(startDate!);
+                            });
+
+                            _startDateKey.currentState?.validate();
+                          }
+                        },
+
+                        readOnly: true,
                       controller: _startDateController,
-                      validator: (value) => (value == null || value.isEmpty)
-                          ? 'Please select a start date'
-                          : null,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please select a start date';
+                          }
+
+                          for (var doc in existingLeaveRequests) {
+                            final start = (doc['start_date'] as Timestamp).toDate();
+                            final end = (doc['end_date'] as Timestamp).toDate();
+
+                            if (startDate != null &&
+                                startDate!.isBefore(end) &&
+                                startDate!.isAfter(start.subtract(Duration(days: 1)))) {
+                              return "Already request date found";
+                            }
+                          }
+                          return null;
+                        }
+
+
                     ),
                   ),
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8.0),
                     child: TextFormField(
+                      key: _endDateKey,
                       autovalidateMode: AutovalidateMode.onUserInteraction,
                       decoration: InputDecoration(
                         labelText: 'End Date',
@@ -1212,34 +1252,49 @@ class _LeaveState extends State<Leave> {
                         ),
                         prefixIcon: Icon(Icons.calendar_today_outlined),
                       ),
-                      onTap: () async {
-                        final DateTime? selectedDate = await showDatePicker(
-                          context: context,
-                          initialDate: endDate ?? DateTime.now(),
-                          firstDate: DateTime.now(),
-                          lastDate: DateTime(2101),
-                        );
-                        if (selectedDate != null) {
-                          setState(() {
-                            endDate = selectedDate;
-                            _endDateController.text =
-                                DateFormat('yyyy-MM-dd').format(endDate!);
-                          });
-                        }
-                      },
-                      readOnly: true,
+                        onTap: () async {
+                           fetchExistingLeaveRequests(); // Ensure data is fetched before validation
+
+                          final DateTime? selectedDate = await showDatePicker(
+                            context: context,
+                            initialDate: endDate ?? DateTime.now(),
+                            firstDate: DateTime.now(),
+                            lastDate: DateTime(2101),
+                          );
+
+                          if (selectedDate != null) {
+                            setState(() {
+                              endDate = selectedDate;
+                              _endDateController.text = DateFormat('yyyy-MM-dd').format(endDate!);
+                            });
+
+                            _endDateKey.currentState?.validate();
+                          }
+                        },
+
+                        readOnly: true,
                       controller: _endDateController,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please select an end date';
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please select an end date';
+                          }
+                          if (startDate != null && endDate != null && endDate!.isBefore(startDate!)) {
+                            return 'End Date must be after Start Date';
+                          }
+
+                          for (var doc in existingLeaveRequests) {
+                            final start = (doc['start_date'] as Timestamp).toDate();
+                            final end = (doc['end_date'] as Timestamp).toDate();
+
+                            if (endDate != null &&
+                                endDate!.isAfter(start.subtract(Duration(days: 1))) &&
+                                endDate!.isBefore(end.add(Duration(days: 1)))) {
+                              return 'Already Leave Request found';
+                            }
+                          }
+                          return null;
                         }
-                        if (startDate != null &&
-                            endDate != null &&
-                            endDate!.isBefore(startDate!)) {
-                          return 'End Date must be after Start Date';
-                        }
-                        return null;
-                      },
+
                     ),
                   ),
                   SizedBox(height: 20),

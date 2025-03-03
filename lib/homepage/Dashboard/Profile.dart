@@ -118,7 +118,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Row(
                   children: <Widget>[
                     CircleAvatar(
-                      radius: 60,
+                      radius: 45,
                       backgroundColor: Colors.white,
                       backgroundImage: (selectedImage != null)
                           ? FileImage(selectedImage!) as ImageProvider

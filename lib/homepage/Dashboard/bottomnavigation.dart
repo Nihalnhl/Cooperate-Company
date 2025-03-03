@@ -20,11 +20,14 @@ class _BarState extends State<Bar> {
   String? role;
   final FirebaseAuth auth = FirebaseAuth.instance;
   @override
+  @override
   void initState() {
-    // TODO: implement initState
     super.initState();
+    final controller = Get.put(NavigationController());
+    controller.selectedIndex.value = 0;
     getData();
   }
+
 
   void getData() {
     final User? user = auth.currentUser;

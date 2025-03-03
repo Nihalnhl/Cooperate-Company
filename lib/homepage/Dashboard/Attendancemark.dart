@@ -45,11 +45,7 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
     });
   }
 
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
+
 
   Future<void> _fetchHiveData() async {
     var box = Hive.box<Attendance>('attendanceBox');
@@ -102,45 +98,62 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
   }
 
   Future<void> _fetchWorkTime() async {
+    if (!mounted) return;
+
     setState(() {
       checkInTime = null;
       checkOutTime = null;
       workTime = 0;
     });
+
     if (_uid == null) return;
+
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
     });
+
     final now = DateTime.now();
     final formattedDate = DateFormat('yyyy-MM-dd').format(now);
+
     final querySnapshot = await _firestore
         .collection('Attendance')
         .where('UserId', isEqualTo: _uid)
         .where('Date', isEqualTo: formattedDate)
         .get();
 
+    if (!mounted) return;
+
     if (querySnapshot.docs.isNotEmpty) {
       final doc = querySnapshot.docs.first;
       final data = doc.data();
       final int? storedCheckInMillis = data['CheckInTime'];
       final int? storedCheckOutMillis = data['LogoutTime'];
-      setState(() {
-        _currentAttendanceId = doc.id;
-        checkInTime = data['Login'];
-        checkOutTime = data['Logout'];
-        checkInMillis = storedCheckInMillis;
-        workTime = data['WorkTime'] ?? 0;
-        _isCheckedIn =
-            storedCheckInMillis != null && storedCheckOutMillis == null;
-      });
+
+      if (mounted) {
+        setState(() {
+          _currentAttendanceId = doc.id;
+          checkInTime = data['Login'];
+          checkOutTime = data['Logout'];
+          checkInMillis = storedCheckInMillis;
+          workTime = data['WorkTime'] ?? 0;
+          _isCheckedIn =
+              storedCheckInMillis != null && storedCheckOutMillis == null;
+        });
+      }
+
       if (_isCheckedIn) {
         _startTimer();
       }
     }
-    setState(() {
-      _isLoading = false;
-    });
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
+
 
   void _startTimer() {
     if (_isCheckedIn && checkInMillis != null) {
@@ -219,7 +232,6 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Checked in at $formattedTime')),
     );
-
     _syncDataToFirestore();
   }
 
@@ -344,6 +356,12 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
 
   double get _progressValue {
     return (workTime / _requiredWorkTime).clamp(0.0, 1.0);
+  }
+
+  @override
+  void dispose() {
+    _stopTimer();
+    super.dispose();
   }
 
   @override

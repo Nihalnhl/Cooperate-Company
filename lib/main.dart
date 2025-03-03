@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
@@ -16,6 +17,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
   await Hive.initFlutter();
+  FirebaseFirestore.instance.settings = Settings(persistenceEnabled: true);
 
   if (!Hive.isAdapterRegistered(0)) {
     Hive.registerAdapter(UserProfileAdapter());

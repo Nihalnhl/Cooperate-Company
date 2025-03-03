@@ -43,6 +43,7 @@ class _HomePageState extends State<HomePage> {
   int TotalTLS = 0;
   bool isOnline = false;
   StreamSubscription? connectivitySubscription;
+  late Box<UserProfile> profileBox;
 
   Future<void> saveImagePath(String path) async {
     final prefs = await SharedPreferences.getInstance();
@@ -199,7 +200,7 @@ class _HomePageState extends State<HomePage> {
     final QuerySnapshot snapshot =
     await FirebaseFirestore.instance.collection('workDetails').get();
 
-    if (!mounted) return; // Prevents calling setState on a disposed widget
+    if (!mounted) return;
 
     final List<QueryDocumentSnapshot> documents = snapshot.docs;
     int completedCount = 0;
@@ -232,7 +233,7 @@ class _HomePageState extends State<HomePage> {
           double.tryParse(data['Progressupdates'].toString()) ?? 0;
 
       tempData.add(ProgressData(
-        data['Assignedto'] ?? 'Unknown',
+        data['AssignedTo'] ?? 'Unknown',
         progressUpdates,
       ));
     }
@@ -243,7 +244,6 @@ class _HomePageState extends State<HomePage> {
       progressData = tempData;
     });
   }
-
 
   Future<void> loadImagehome() async {
     final path = await getImagePath();
@@ -271,7 +271,7 @@ class _HomePageState extends State<HomePage> {
         });
   }
 
-  late Box<UserProfile> profileBox;
+
 
   @override
   void initState() {
@@ -370,7 +370,9 @@ class _HomePageState extends State<HomePage> {
                             ),
                             SizedBox(height: 5),
                             Text(
-                              data!["name"],
+                              isOnline
+                                  ? (data?["name"] ?? "No Name")
+                                  : (userProfile?.name ?? data?["name"] ?? "No Name"),
                               style: TextStyle(
                                   color: Colors.black,
                                   fontSize: 18,
@@ -806,14 +808,18 @@ class _HomePageState extends State<HomePage> {
                                   'assets/profile.jpeg') as ImageProvider,
                             ),
                             Text(
-                              data["name"],
+                              isOnline
+                                  ? (data?["name"] ?? "No Name")
+                                  : (userProfile?.name ?? data?["name"] ?? "No Name"),
                               style: TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.white),
                             ),
                             Text(
-                              data["email"],
+                              isOnline
+                                  ? (data?["email"] ?? userProfile?.email ?? "No Email")
+                                  : (userProfile?.email ?? data?["email"] ?? "No Email"),
                               style: TextStyle(
                                   fontSize: 14, color: Colors.white70),
                             ),
