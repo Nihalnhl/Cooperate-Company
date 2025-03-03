@@ -55,7 +55,6 @@
       });
       _authSubscription = FirebaseAuth.instance.authStateChanges().listen((user) {
         if (user != null && user.emailVerified) {
-          // Update the email field if the email is verified
           setState(() {
             emailController.text = user.email ?? '';
           });
@@ -149,9 +148,7 @@
               imagePath: selectedImage?.path,
               isSynced: false,
             );
-
             await profileBox.put(user.uid, userProfile);
-
             if (await _checkConnectivity()) {
               await _syncProfileWithFirebase(user.uid, userProfile);
             } else {
@@ -283,28 +280,6 @@
       }
     }
 
-    Future<void> _reauthenticateUser(User user, String currentPassword) async {
-      try {
-        AuthCredential credential;
-
-        if (user.providerData.any((info) => info.providerId == "password")) {
-          credential = EmailAuthProvider.credential(
-            email: user.email!,
-            password: currentPassword,
-          );
-
-        } else {
-          throw Exception("Re-authentication method not supported for this provider.");
-        }
-
-        await user.reauthenticateWithCredential(credential);
-      } catch (e) {
-        throw Exception("Failed to re-authenticate: $e");
-      }
-    }
-
-
-
     Future<void> _syncProfileWithFirebase(String userId, UserProfile userProfile) async {
       await FirebaseFirestore.instance.collection('user').doc(userId).update({
         'name': userProfile.name,
@@ -339,7 +314,7 @@
     Future<void> checkConnectivity() async {
       final connectivityResult = await Connectivity().checkConnectivity();
       setState(() {
-        isOnline = connectivityResult != ConnectivityResult.none; // Update connectivity status
+        isOnline = connectivityResult != ConnectivityResult.none;
       });
     }
     Stream<DocumentSnapshot<Map<String, dynamic>>>? getUserDataStream() {

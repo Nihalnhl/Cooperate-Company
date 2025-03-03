@@ -40,6 +40,13 @@ class _BiometricLoginPageState extends State<BiometricLoginPage> {
     _checkUserRole();
   }
 
+  Future<void> storeUserCredentials(String email, String password) async {
+    var box = await Hive.openBox('userCredentialsBox');
+    await box.put('email', email);
+    await box.put('password', password);
+    await box.put('isAuthenticated', true);
+  }
+
   List<Map<String, dynamic>> currentData = [];
 
   Future<void> storeUserRole(String role) async {
@@ -57,6 +64,7 @@ class _BiometricLoginPageState extends State<BiometricLoginPage> {
 
       final email = _emailController.text.trim();
       final password = _passController.text.trim();
+
 
       try {
         final userCredential =
@@ -122,8 +130,6 @@ class _BiometricLoginPageState extends State<BiometricLoginPage> {
       }
     }
   }
-
-
 
   Future<void> fetchAndStoreCompanyDetails() async {
     try {
