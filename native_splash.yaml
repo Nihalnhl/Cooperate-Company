@@ -1,9 +1,0 @@
-flutter_native_splash:
-   android: true
-   ios: true
-   web: false
-   branding: ""
-
-   android_12:
-     color:
-     image: "assets/noti.png"

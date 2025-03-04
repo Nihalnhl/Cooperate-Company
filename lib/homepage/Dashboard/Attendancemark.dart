@@ -189,13 +189,34 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
     final formattedTime = DateFormat('hh:mm a').format(now);
     final nowMillis = now.millisecondsSinceEpoch;
 
+    var attendanceBox = Hive.box<Attendance>('attendanceBox');
+    if (attendanceBox.containsKey(formattedDate)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('You have already checked in today.'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    var querySnapshot = await _firestore
+        .collection('Attendance')
+        .where('UserId', isEqualTo: _uid)
+        .where('Date', isEqualTo: formattedDate)
+        .get();
+
+    if (querySnapshot.docs.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('You have already checked in today.'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
     if (mounted) {
       setState(() {
         checkInTime = formattedTime;
         checkOutTime = null;
         checkInMillis = nowMillis;
         workTime = 0;
-        _isCheckedIn = true;
+
       });
     }
 
@@ -211,7 +232,6 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
       return;
     }
 
-    var attendanceBox = Hive.box<Attendance>('attendanceBox');
     Attendance attendance = Attendance(
       UserId: _uid!,
       Date: formattedDate,
@@ -227,11 +247,12 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
     print("Check-in data saved to Hive: ${attendance.toJson()}");
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Checked in at $formattedTime'),
-      backgroundColor: Colors.green,),
+      SnackBar(content: Text('Checked in at $formattedTime'), backgroundColor: Colors.green),
     );
+
     _syncDataToFirestore();
   }
+
 
   Future<void> _syncDataToFirestore() async {
     if (_uid == null) return;
@@ -299,18 +320,31 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
     final formattedTime = DateFormat('hh:mm a').format(now);
     final nowMillis = now.millisecondsSinceEpoch;
 
+    final formattedDate = DateFormat('yyyy-MM-dd').format(now);
+
+
     final querySnapshot = await _firestore
         .collection('Attendance')
         .where('UserId', isEqualTo: _uid)
-        .where('Date', isEqualTo: DateFormat('yyyy-MM-dd').format(now))
+        .where('Date', isEqualTo: formattedDate)
         .get();
 
     if (querySnapshot.docs.isNotEmpty) {
       final doc = querySnapshot.docs.first;
       final data = doc.data();
 
+      if (data['LogoutTime'] != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('You have already checked out today.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
       var box = Hive.box<Attendance>('attendanceBox');
-      Attendance? attendance = box.get(DateFormat('yyyy-MM-dd').format(now));
+      Attendance? attendance = box.get(formattedDate);
 
       if (attendance != null) {
         attendance.Logout = formattedTime;
@@ -318,31 +352,44 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
         attendance.workTime = workTime;
         attendance.isSynced = false;
         attendance.save();
-        print(" Check-out data saved to Hive: ${attendance.toJson()}");
+        print("Check-out data saved to Hive: ${attendance.toJson()}");
       } else {
-        print(" Error: No check-in record found for today.");
+        print("Error: No check-in record found for today in Hive.");
+      }
+
+      try {
+        await _firestore.collection('Attendance').doc(doc.id).update({
+          'Logout': formattedTime,
+          'LogoutTime': nowMillis,
+          'WorkTime': workTime,
+        });
+        print("Check-out data updated in Firestore.");
+      } catch (e) {
+        print("Error updating Firestore: $e");
       }
 
       setState(() {
-        _isCheckedIn = false;
         checkOutTime = formattedTime;
+
       });
 
       _stopTimer();
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Checked out at $formattedTime'),
-        backgroundColor: Colors.red,),
+        SnackBar(
+          content: Text('Checked out at $formattedTime'),
+          backgroundColor: Colors.red,
+        ),
       );
 
       _syncDataToFirestore();
-      if (data['LogoutTime'] != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('You have already checked out today.'),
-          backgroundColor: Colors.red,),
-        );
-        return;
-      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No check-in record found for today.'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 

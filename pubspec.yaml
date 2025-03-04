@@ -74,6 +74,13 @@ dependencies:
 
 
 
+flutter_native_splash:
+  color: "#ffffff"  # Background color (white in this case)
+  image: assets/noti.png  # Your splash image
+  android_12:
+    color: "#ffffff"
+    image: assets/noti.png
+
 
 
 
@@ -96,7 +103,7 @@ dev_dependencies:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/log.png"
+  image_path: "image/log.png"
   remove_alpha_ios: true
 
 
