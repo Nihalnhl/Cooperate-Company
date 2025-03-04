@@ -119,7 +119,6 @@ class _HomePageState extends State<HomePage> {
       });
       print("Error fetching leave records: $e");
     }
-
 }
 
   void getData() {

@@ -104,7 +104,6 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
         print("Hive Data: $currentData");
       });
     }
-
     var connectivityResult = await Connectivity().checkConnectivity();
     if (connectivityResult != ConnectivityResult.none) {
       try {
@@ -226,11 +225,9 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
     } else if (selectedDate != null) {
       baseQuery = baseQuery.where('Date', isEqualTo: selectedDate);
     }
-
     if (selectedEmployee != null && selectedEmployee!.isNotEmpty) {
       baseQuery = baseQuery.where('name', whereIn: selectedEmployee);
     }
-
     baseQuery = baseQuery.orderBy('Date', descending: false);
     baseQuery.get().then((snapshot) {
       setState(() {
@@ -483,8 +480,7 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
                 EdgeInsets.symmetric(horizontal: 20, vertical: 15),
               ),
             ),
-          )
-          ,
+          ),
           Expanded(
             child: searchResults != null
                 ? (searchResults!.isEmpty

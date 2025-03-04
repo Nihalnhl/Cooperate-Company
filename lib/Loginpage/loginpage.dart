@@ -77,7 +77,13 @@ class _BiometricLoginPageState extends State<BiometricLoginPage> {
         final User? user = FirebaseAuth.instance.currentUser;
         if (user != null) {
           print('User logged in: ${user.uid}');
-
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Successfully Logged In"),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 3),
+            ),
+          );
           final role = await _fetchUserRoleFromFirestore(user.uid);
           await storeUserRole(role);
           await fetchAndStoreLeaveRecords();
@@ -114,7 +120,7 @@ class _BiometricLoginPageState extends State<BiometricLoginPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(errorMessage),
-
+backgroundColor: Colors.red,
               duration: Duration(seconds: 3),
             ),
           );

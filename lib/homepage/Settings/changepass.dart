@@ -24,7 +24,8 @@ class _ChangePassState extends State<ChangePass> {
     if (_formKey.currentState?.validate() ?? false) {
       if (!await isOnline()) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("No internet connection. Please try again later.")),
+          SnackBar(content: Text("No internet connection. Please try again later."),
+          backgroundColor: Colors.red,),
         );
         return;
       }
@@ -44,11 +45,13 @@ class _ChangePassState extends State<ChangePass> {
         if (mounted) {
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text("Successfully changed password.")));
+              SnackBar(content: Text("Successfully changed password."),
+              backgroundColor: Colors.green,));
         }
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Incorrect password or an error occurred.")),
+          SnackBar(content: Text("Incorrect password or an error occurred."),
+          backgroundColor: Colors.red,),
         );
       } finally {
         setState(() {

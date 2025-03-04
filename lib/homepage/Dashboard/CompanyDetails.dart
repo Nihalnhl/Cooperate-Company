@@ -226,13 +226,13 @@ class _CompanydetailsState extends State<Companydetails> {
       ];
     } else {
       return [
-        _buildReadOnlyListTile('Name', companyData!.name, Icons.person),
-        _buildReadOnlyListTile('Industry', companyData!.industry, Icons.business),
-        _buildReadOnlyListTile('Headquarters', companyData!.headQua, Icons.location_city),
-        _buildReadOnlyListTile('Email', companyData!.email, Icons.email),
-        _buildReadOnlyListTile('Working Hours', companyData!.workingHours, Icons.timer),
-        _buildReadOnlyListTile('Website', companyData!.website, Icons.web),
-        _buildReadOnlyListTile('Phone', companyData!.phone, Icons.phone),
+        _buildReadOnlyListTile('Name:', companyData!.name, Icons.person),
+        _buildReadOnlyListTile('Industry:', companyData!.industry, Icons.business),
+        _buildReadOnlyListTile('Headquarters:', companyData!.headQua, Icons.location_city),
+        _buildReadOnlyListTile('Email:', companyData!.email, Icons.email),
+        _buildReadOnlyListTile('Working Hours:', companyData!.workingHours, Icons.timer),
+        _buildReadOnlyListTile('Website:', companyData!.website, Icons.web),
+        _buildReadOnlyListTile('Phone:', companyData!.phone, Icons.phone),
       ];
     }
   }
@@ -242,7 +242,7 @@ class _CompanydetailsState extends State<Companydetails> {
       children: [
         ListTile(
           leading: Icon(icon),
-          title: Text(title),
+          title: Text(title,style: TextStyle(fontWeight: FontWeight.bold),),
           subtitle: TextField(
             controller: controller,
             decoration: InputDecoration(hintText: 'Enter $title'),

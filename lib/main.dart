@@ -7,6 +7,7 @@ import 'package:hive/hive.dart';
 import 'package:hive_flutter/adapters.dart';
 import 'package:loginpage/Hive/user_profile.dart';
 import 'package:loginpage/Loginpage/wrap.dart';
+import 'package:loginpage/Splashscreen.dart';
 import 'Hive/attendance_model.dart';
 import 'Hive/company_model.dart';
 import 'Hive/leave_request_model.dart';

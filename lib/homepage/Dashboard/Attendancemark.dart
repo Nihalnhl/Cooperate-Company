@@ -6,7 +6,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:hive/hive.dart';
 import 'package:intl/intl.dart';
 import 'package:loginpage/Hive/user_profile.dart';
-
 import '../../Hive/attendance_model.dart';
 
 class CheckInOutPage1 extends StatefulWidget {
@@ -44,8 +43,6 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
       }
     });
   }
-
-
 
   Future<void> _fetchHiveData() async {
     var box = Hive.box<Attendance>('attendanceBox');
@@ -230,7 +227,8 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
     print("Check-in data saved to Hive: ${attendance.toJson()}");
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Checked in at $formattedTime')),
+      SnackBar(content: Text('Checked in at $formattedTime'),
+      backgroundColor: Colors.green,),
     );
     _syncDataToFirestore();
   }
@@ -333,13 +331,15 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
       _stopTimer();
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Checked out at $formattedTime')),
+        SnackBar(content: Text('Checked out at $formattedTime'),
+        backgroundColor: Colors.red,),
       );
 
       _syncDataToFirestore();
       if (data['LogoutTime'] != null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('You have already checked out today.')),
+          SnackBar(content: Text('You have already checked out today.'),
+          backgroundColor: Colors.red,),
         );
         return;
       }
@@ -351,8 +351,6 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
     String twoDigits(int n) => n.toString().padLeft(2, "0");
     return "${twoDigits(duration.inHours)}:${twoDigits(duration.inMinutes.remainder(60))}:${twoDigits(duration.inSeconds.remainder(60))}";
   }
-
-
 
   double get _progressValue {
     return (workTime / _requiredWorkTime).clamp(0.0, 1.0);

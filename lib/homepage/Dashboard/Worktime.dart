@@ -44,7 +44,6 @@ class SetWorkTimePage extends StatefulWidget {
         };
       }).toList();
 
-      // Initialize a FocusNode for each employee after the employees list is updated
       _focusNodes = List.generate(employees.length, (index) => FocusNode());
     });
   }

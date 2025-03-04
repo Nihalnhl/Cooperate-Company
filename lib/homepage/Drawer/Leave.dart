@@ -19,7 +19,6 @@ class _LeaveState extends State<Leave> {
   final _formKey = GlobalKey<FormState>();
   final GlobalKey<FormFieldState> _startDateKey = GlobalKey<FormFieldState>();
   final GlobalKey<FormFieldState> _endDateKey = GlobalKey<FormFieldState>();
-
   final TextEditingController reasonController = TextEditingController();
   TextEditingController searchController = TextEditingController();
   TextEditingController _startDateController = TextEditingController();
@@ -477,7 +476,8 @@ class _LeaveState extends State<Leave> {
       await addLeaveRequestToHive(leaveRequest);
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Leave request submitted successfully!')),
+        const SnackBar(content: Text('Leave request submitted successfully!'),
+        backgroundColor: Colors.green,),
       );
     } catch (error) {
       print('Error creating leave request: $error');
@@ -507,7 +507,9 @@ class _LeaveState extends State<Leave> {
       await updateLeaveRequestInHive(leaveRequest);
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Leave request updated successfully!')),
+        const SnackBar(content: Text('Leave request updated successfully!'),
+          backgroundColor: Colors.green,
+        ),
       );
     } catch (error) {
       print('Error updating leave request: $error');
@@ -591,8 +593,6 @@ class _LeaveState extends State<Leave> {
 
     existingLeaveRequests = querySnapshot.docs;
   }
-
-
   void clearFilters() {
     setState(() {
       searchQuery = '';

@@ -27,6 +27,7 @@ class _SettingspageState extends State<Settingspage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('No internet connection. Please try again later.'),
+          backgroundColor: Colors.red,
           duration: Duration(seconds: 3),
         ),
       );
@@ -40,6 +41,13 @@ class _SettingspageState extends State<Settingspage> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => BiometricLoginPage()),
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Successfully Sign out'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
+        ),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(

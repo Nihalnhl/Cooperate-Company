@@ -45,7 +45,9 @@ class _SignUpPageState extends State<SignUpPage> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text('Succesfully Signed up, $email! You are signed up.')),
+            content: Text('Succesfully Signed up, $email! You are signed up.'),
+        backgroundColor: Colors.green,),
+
       );
       Navigator.pushReplacement(
         context,
