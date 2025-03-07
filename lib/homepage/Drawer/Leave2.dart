@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:shimmer/shimmer.dart';
 
 class Leave1 extends StatefulWidget {
   const Leave1({super.key});
@@ -34,190 +35,11 @@ class _LeaveState extends State<Leave1> {
   TextEditingController searchController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   final TextEditingController reasonController = TextEditingController();
-
-  void showFilterDialog() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        String? selectedStatus = filterStatus;
-        DateTimeRange? selectedDateRange =
-            filterStartDate != null && filterEndDate != null
-                ? DateTimeRange(start: filterStartDate!, end: filterEndDate!)
-                : null;
-
-        TextEditingController dateRangeController = TextEditingController(
-            text: selectedDateRange != null
-                ? 'From: ${selectedDateRange.start.toLocal().toString().split(' ')[0]} to ${selectedDateRange.end.toLocal().toString().split(' ')[0]}'
-                : 'Select Date Range');
-
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              backgroundColor: Colors.grey.shade200,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              title: Row(
-                children: [
-                  const Text('Filter Leave Request',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                  IconButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                    icon: Icon(Icons.close),
-                  )
-                ],
-              ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    DropdownButtonFormField<String>(
-                      value: selectedStatus,
-                      items: const [
-                        DropdownMenuItem(
-                            value: null, child: Text('All Status')),
-                        DropdownMenuItem(
-                            value: 'Pending', child: Text('Pending')),
-                        DropdownMenuItem(
-                            value: 'Approved', child: Text('Approved')),
-                        DropdownMenuItem(
-                            value: 'Rejected', child: Text('Rejected')),
-                      ],
-                      onChanged: (value) {
-                        setDialogState(() {
-                          selectedStatus = value;
-                        });
-                      },
-                      decoration: InputDecoration(
-                        labelText: 'Status',
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 10),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    TextField(
-                      controller: dateRangeController,
-                      readOnly: true,
-                      onTap: () async {
-                        DateTimeRange? pickedRange = await showDateRangePicker(
-                          context: context,
-                          firstDate: DateTime(2000),
-                          lastDate:
-                              DateTime.now().add(const Duration(days: 365)),
-                        );
-                        if (pickedRange != null) {
-                          setDialogState(() {
-                            selectedDateRange = pickedRange;
-                            dateRangeController.text =
-                                ' ${pickedRange.start.toLocal().toString().split(' ')[0]} to ${pickedRange.end.toLocal().toString().split(' ')[0]}';
-                          });
-                        }
-                      },
-                      decoration: InputDecoration(
-                        labelText: 'Date Range',
-                        hintText: 'Select Date Range',
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 10),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                  ],
-                ),
-              ),
-              actions: [
-                _actionButton(
-                  text: "Clear",
-                  icon: Icons.clear,
-                  color: Colors.red,
-                  onPressed: clearFilters,
-                ),
-                _actionButton(
-                  text: "Apply Filters",
-                  icon: Icons.check,
-                  color: Colors.green,
-                  onPressed: () {
-                    setState(() {
-                      filterStatus = selectedStatus;
-                      if (selectedDateRange != null) {
-                        filterStartDate = selectedDateRange!.start;
-                        filterEndDate = selectedDateRange!.end;
-                      }
-                    });
-                    Navigator.pop(context);
-                  },
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  List<QueryDocumentSnapshot> getFilteredData() {
-    List<QueryDocumentSnapshot> filteredData = currentData;
-    if (searchQuery.isNotEmpty) {
-      filteredData = filteredData.where((doc) {
-        final data = doc.data() as Map<String, dynamic>;
-        final name = data['user_name'].toString().toLowerCase();
-        final department = data['department'].toString().toLowerCase();
-        final reason = data['reason'].toString().toLowerCase();
-        final type = data['leave_type'].toString().toLowerCase();
-
-        final startDate = data['start_date'] != null
-            ? (data['start_date'] as Timestamp).toDate()
-            : null;
-        final endDate = data['end_date'] != null
-            ? (data['end_date'] as Timestamp).toDate()
-            : null;
-
-        final startMonth = startDate != null
-            ? DateFormat('dd MMM yyyy').format(startDate).toLowerCase()
-            : '';
-        final endMonth = endDate != null
-            ? DateFormat('dd MMM yyyy').format(endDate).toLowerCase()
-            : '';
-
-        return name.contains(searchQuery.toLowerCase()) ||
-            department.contains(searchQuery.toLowerCase()) ||
-            reason.contains(searchQuery.toLowerCase()) ||
-            type.contains(searchQuery.toLowerCase()) ||
-            (startDate != null &&
-                startDate
-                    .toString()
-                    .toLowerCase()
-                    .contains(searchQuery.toLowerCase())) ||
-            (endDate != null &&
-                endDate
-                    .toString()
-                    .toLowerCase()
-                    .contains(searchQuery.toLowerCase())) ||
-            startMonth.contains(searchQuery.toLowerCase()) ||
-            endMonth.contains(searchQuery.toLowerCase());
-      }).toList();
-    }
-
-    if (filterStartDate != null && filterEndDate != null) {
-      filteredData = filteredData.where((doc) {
-        final data = doc.data() as Map<String, dynamic>;
-        final startDate = (data['start_date'] as Timestamp).toDate();
-        return startDate.isAfter(filterStartDate!) &&
-            startDate.isBefore(filterEndDate!);
-      }).toList();
-    }
-
-    if (filterStatus != null) {
-      filteredData = filteredData.where((doc) {
-        final data = doc.data() as Map<String, dynamic>;
-        return data['status'] == filterStatus;
-      }).toList();
-    }
-    return filteredData;
+  bool isFetching = true;
+  @override
+  void initState() {
+    super.initState();
+    getData();
   }
 
   void clearFilters() {
@@ -234,7 +56,9 @@ class _LeaveState extends State<Leave1> {
     final User? user = auth.currentUser;
     final uid = user!.uid;
 
-    setState(() {});
+    setState(() {
+      isFetching = true;
+    });
     FirebaseFirestore.instance
         .collection('user')
         .doc(uid)
@@ -327,6 +151,7 @@ class _LeaveState extends State<Leave1> {
                 .then((value) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
+                    backgroundColor: Colors.green,
                     content: Text('Leave request submitted successfully!')),
               );
               getData();
@@ -351,6 +176,7 @@ class _LeaveState extends State<Leave1> {
             }).then((value) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
+                    backgroundColor: Colors.green,
                     content: Text('Leave request updated successfully!')),
               );
               getData();
@@ -378,10 +204,383 @@ class _LeaveState extends State<Leave1> {
     }
   }
 
+  List<QueryDocumentSnapshot> getFilteredData() {
+    List<QueryDocumentSnapshot> filteredData = currentData;
+    if (searchQuery.isNotEmpty) {
+      filteredData = filteredData.where((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        final name = data['user_name'].toString().toLowerCase();
+        final department = data['department'].toString().toLowerCase();
+        final reason = data['reason'].toString().toLowerCase();
+        final type = data['leave_type'].toString().toLowerCase();
+
+        final startDate = data['start_date'] != null
+            ? (data['start_date'] as Timestamp).toDate()
+            : null;
+        final endDate = data['end_date'] != null
+            ? (data['end_date'] as Timestamp).toDate()
+            : null;
+
+        final startMonth = startDate != null
+            ? DateFormat('dd MMM yyyy').format(startDate).toLowerCase()
+            : '';
+        final endMonth = endDate != null
+            ? DateFormat('dd MMM yyyy').format(endDate).toLowerCase()
+            : '';
+
+        return name.contains(searchQuery.toLowerCase()) ||
+            department.contains(searchQuery.toLowerCase()) ||
+            reason.contains(searchQuery.toLowerCase()) ||
+            type.contains(searchQuery.toLowerCase()) ||
+            (startDate != null &&
+                startDate
+                    .toString()
+                    .toLowerCase()
+                    .contains(searchQuery.toLowerCase())) ||
+            (endDate != null &&
+                endDate
+                    .toString()
+                    .toLowerCase()
+                    .contains(searchQuery.toLowerCase())) ||
+            startMonth.contains(searchQuery.toLowerCase()) ||
+            endMonth.contains(searchQuery.toLowerCase());
+      }).toList();
+    }
+
+    if (filterStartDate != null && filterEndDate != null) {
+      filteredData = filteredData.where((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        final startDate = (data['start_date'] as Timestamp).toDate();
+        return startDate.isAfter(filterStartDate!) &&
+            startDate.isBefore(filterEndDate!);
+      }).toList();
+    }
+
+    if (filterStatus != null) {
+      filteredData = filteredData.where((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return data['status'] == filterStatus;
+      }).toList();
+    }
+    return filteredData;
+  }
+
   @override
-  void initState() {
-    super.initState();
-    getData();
+  Widget build(BuildContext context) {
+    final filteredData = getFilteredData();
+    bool isLoading = filteredData.isEmpty;
+    return Scaffold(
+      appBar: AppBar(
+        title: role == 'teamlead'
+            ? Text(
+                'My Leave Records',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              )
+            : Text(
+                "Leave Records",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+        actions: [
+          IconButton(onPressed: showFilterDialog, icon: Icon(Icons.tune))
+        ],
+      ),
+      body: Column(
+        children: [
+          // Search Bar
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: TextField(
+              controller: searchController,
+              onChanged: (value) {
+                setState(() {
+                  searchQuery = value;
+                });
+              },
+              decoration: InputDecoration(
+                hintText: "Search...",
+                prefixIcon: Icon(Icons.search, color: Colors.black),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(30),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Stack(
+              children: [
+                isLoading
+                    ? _buildShimmerList()
+                    : ListView.builder(
+                        itemCount: filteredData.length,
+                        itemBuilder: (context, index) {
+                          filteredData.sort((a, b) {
+                            String statusA = a['status'] ?? 'Pending';
+                            String statusB = b['status'] ?? 'Pending';
+                            if (statusA == 'Pending' && statusB != 'Pending')
+                              return -1;
+                            if (statusA != 'Pending' && statusB == 'Pending')
+                              return 1;
+                            if (statusA == 'Approved' && statusB == 'Rejected')
+                              return -1;
+                            if (statusA == 'Rejected' && statusB == 'Approved')
+                              return 1;
+                            return 0;
+                          });
+
+                          final workDetail = filteredData[index];
+                          DateTime startDate =
+                              workDetail['start_date'].toDate();
+                          DateTime endDate = workDetail['end_date'].toDate();
+                          String formattedStartDate =
+                              DateFormat('dd MMM yyyy').format(startDate);
+                          String formattedEndDate =
+                              DateFormat('dd MMM yyyy').format(endDate);
+                          String statusText = workDetail['status'] ?? 'Pending';
+                          String workName = workDetail['user_name'];
+
+                          Color statusColor = statusText == 'Approved'
+                              ? Colors.green.shade600
+                              : statusText == 'Rejected'
+                                  ? Colors.red.shade600
+                                  : Colors.orange.shade600;
+
+                          IconData statusIcon = statusText == 'Approved'
+                              ? Icons.check_circle
+                              : statusText == 'Rejected'
+                                  ? Icons.cancel
+                                  : Icons.hourglass_bottom;
+
+                          return Padding(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 10),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                      color: Colors.black12,
+                                      blurRadius: 10,
+                                      offset: Offset(4, 4)),
+                                  BoxShadow(
+                                      color: Colors.white.withOpacity(0.7),
+                                      blurRadius: 5,
+                                      offset: Offset(-4, -4)),
+                                ],
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Colors.white.withOpacity(0.8),
+                                    Colors.white.withOpacity(0.6)
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                              ),
+                              child: ListTile(
+                                contentPadding: EdgeInsets.all(20),
+                                title: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    if (role == "admin")
+                                      Row(
+                                        children: [
+                                          Icon(Icons.person,
+                                              color: Colors.blueGrey, size: 22),
+                                          SizedBox(width: 8),
+                                          Text(
+                                            workName,
+                                            style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.black87),
+                                          ),
+                                        ],
+                                      ),
+                                    SizedBox(height: 6),
+
+                                    // Leave Type & Status
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Icon(Icons.event,
+                                                color: Colors.blueGrey,
+                                                size: 20),
+                                            SizedBox(width: 6),
+                                            Text(
+                                              '${workDetail['leave_type']}',
+                                              style: TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w500,
+                                                  color: Colors.black87),
+                                            ),
+                                          ],
+                                        ),
+                                        Container(
+                                          padding: EdgeInsets.symmetric(
+                                              horizontal: 12, vertical: 6),
+                                          decoration: BoxDecoration(
+                                            color: statusColor.withOpacity(0.2),
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Icon(statusIcon,
+                                                  color: statusColor, size: 18),
+                                              SizedBox(width: 6),
+                                              Text(
+                                                statusText,
+                                                style: TextStyle(
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: statusColor),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    SizedBox(height: 6),
+
+                                    // Leave Dates
+                                    Row(
+                                      children: [
+                                        Icon(Icons.date_range,
+                                            color: Colors.blueGrey, size: 20),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          '$formattedStartDate → $formattedEndDate',
+                                          style: TextStyle(
+                                              fontSize: 14,
+                                              color: Colors.black54),
+                                        ),
+                                      ],
+                                    ),
+                                    SizedBox(height: 12),
+
+                                    if (role == "admin" &&
+                                        statusText == 'Pending')
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.end,
+                                        children: [
+                                          _actionButton(
+                                              text: "Approve",
+                                              icon: Icons.check,
+                                              color: Colors.green,
+                                              onPressed: () {
+                                                FirebaseFirestore.instance
+                                                    .collection('leave_records')
+                                                    .doc(workDetail.id)
+                                                    .update({
+                                                  'status': 'Approved'
+                                                }).then((value) {
+                                                  ScaffoldMessenger.of(context)
+                                                      .showSnackBar(
+                                                    SnackBar(
+                                                        content: Text(
+                                                            'Leave request approved!'),
+                                                        backgroundColor:
+                                                            Colors.green),
+                                                  );
+                                                  getData();
+                                                }).catchError((error) {
+                                                  ScaffoldMessenger.of(context)
+                                                      .showSnackBar(
+                                                    SnackBar(
+                                                        content: Text(
+                                                            'Failed to approve leave request: $error'),
+                                                        backgroundColor:
+                                                            Colors.red),
+                                                  );
+                                                });
+                                              }),
+                                          SizedBox(
+                                            width: 10,
+                                          ),
+                                          _actionButton(
+                                              text: "Reject",
+                                              icon: Icons.close,
+                                              color: Colors.red,
+                                              onPressed: () {
+                                                FirebaseFirestore.instance
+                                                    .collection('leave_records')
+                                                    .doc(workDetail.id)
+                                                    .update({
+                                                  'status': 'Rejected'
+                                                }).then((value) {
+                                                  ScaffoldMessenger.of(context)
+                                                      .showSnackBar(
+                                                    SnackBar(
+                                                        content: Text(
+                                                            'Leave request rejected!'),
+                                                        backgroundColor:
+                                                            Colors.red),
+                                                  );
+                                                  getData();
+                                                }).catchError((error) {
+                                                  ScaffoldMessenger.of(context)
+                                                      .showSnackBar(
+                                                    SnackBar(
+                                                        content: Text(
+                                                            'Failed to reject leave request: $error'),
+                                                        backgroundColor:
+                                                            Colors.red),
+                                                  );
+                                                });
+                                              })
+                                        ],
+                                      ),
+                                    if (role == "teamlead" &&
+                                        statusText == "Pending")
+                                      Align(
+                                        alignment: Alignment.bottomRight,
+                                        child: TextButton.icon(
+                                          onPressed: () {
+                                            FirebaseFirestore.instance
+                                                .collection('leave_records')
+                                                .doc(workDetail.id)
+                                                .delete()
+                                                .then((value) {
+                                              getData();
+                                            });
+                                          },
+                                          icon: Icon(Icons.delete,
+                                              color: Colors.redAccent),
+                                          label: Text('Cancel Request',
+                                              style: TextStyle(
+                                                  color: Colors.redAccent)),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                onTap: () =>
+                                    showLeaveRequestDetailDialog(workDetail),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: role == 'teamlead'
+          ? FloatingActionButton(
+              backgroundColor: Colors.white,
+              onPressed: showLeaveRequestDialog,
+              child: Icon(Icons.add),
+            )
+          : SizedBox(),
+    );
   }
 
   void showLeaveRequestDetailDialog(DocumentSnapshot leaveRequest) {
@@ -396,7 +595,6 @@ class _LeaveState extends State<Leave1> {
         context: context,
         builder: (context) {
           return AlertDialog(
-            backgroundColor: Colors.grey.shade300,
             title: Row(
               children: [
                 Text(
@@ -610,29 +808,6 @@ class _LeaveState extends State<Leave1> {
     );
   }
 
-  Widget _actionButton({
-    required String text,
-    required IconData icon,
-    required Color color,
-    required VoidCallback onPressed,
-  }) {
-    return ElevatedButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, color: Colors.white),
-      label: Text(
-        text,
-        style: const TextStyle(color: Colors.white),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
-    );
-  }
-
   TextEditingController _startDateController = TextEditingController();
   TextEditingController _endDateController = TextEditingController();
 
@@ -675,7 +850,6 @@ class _LeaveState extends State<Leave1> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: Colors.grey.shade300,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(15),
           ),
@@ -891,307 +1065,191 @@ class _LeaveState extends State<Leave1> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final filteredData = getFilteredData();
-    return Scaffold(
-      appBar: AppBar(
-        title: role == 'teamlead'
-            ? Text(
-                'My Leave Records',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              )
-            : Text(
-                "Leave Records",
-                style: TextStyle(fontWeight: FontWeight.bold),
+  void showFilterDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        String? selectedStatus = filterStatus;
+        DateTimeRange? selectedDateRange =
+            filterStartDate != null && filterEndDate != null
+                ? DateTimeRange(start: filterStartDate!, end: filterEndDate!)
+                : null;
+
+        TextEditingController dateRangeController = TextEditingController(
+            text: selectedDateRange != null
+                ? 'From: ${selectedDateRange.start.toLocal().toString().split(' ')[0]} to ${selectedDateRange.end.toLocal().toString().split(' ')[0]}'
+                : 'Select Date Range');
+
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: Colors.grey.shade200,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              title: Row(
+                children: [
+                  const Text('Filter Leave Request',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  IconButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    icon: Icon(Icons.close),
+                  )
+                ],
               ),
-        actions: [
-          IconButton(onPressed: showFilterDialog, icon: Icon(Icons.tune))
-        ],
-      ),
-      body: Column(
-        children: [
-          // Search Bar
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              controller: searchController,
-              onChanged: (value) {
-                setState(() {
-                  searchQuery = value;
-                });
-              },
-              decoration: InputDecoration(
-                hintText: "Search...",
-                prefixIcon: Icon(Icons.search, color: Colors.black),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding:
-                    EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-              ),
-            ),
-          ),
-          Expanded(
-            child: Stack(
-              children: [
-                ListView.builder(
-                  itemCount: filteredData.length,
-                  itemBuilder: (context, index) {
-                    filteredData.sort((a, b) {
-                      String statusA = a['status'] ?? 'Pending';
-                      String statusB = b['status'] ?? 'Pending';
-                      if (statusA == 'Pending' && statusB != 'Pending')
-                        return -1;
-                      if (statusA != 'Pending' && statusB == 'Pending')
-                        return 1;
-                      if (statusA == 'Approved' && statusB == 'Rejected')
-                        return -1;
-                      if (statusA == 'Rejected' && statusB == 'Approved')
-                        return 1;
-                      return 0;
-                    });
-
-                    final workDetail = filteredData[index];
-                    DateTime startDate = workDetail['start_date'].toDate();
-                    DateTime endDate = workDetail['end_date'].toDate();
-                    String formattedStartDate =
-                        DateFormat('dd MMM yyyy').format(startDate);
-                    String formattedEndDate =
-                        DateFormat('dd MMM yyyy').format(endDate);
-                    String statusText = workDetail['status'] ?? 'Pending';
-                    String workName = workDetail['user_name'];
-
-                    Color statusColor = statusText == 'Approved'
-                        ? Colors.green.shade600
-                        : statusText == 'Rejected'
-                            ? Colors.red.shade600
-                            : Colors.orange.shade600;
-
-                    IconData statusIcon = statusText == 'Approved'
-                        ? Icons.check_circle
-                        : statusText == 'Rejected'
-                            ? Icons.cancel
-                            : Icons.hourglass_bottom;
-
-                    return Padding(
-                      padding:
-                          EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                                color: Colors.black12,
-                                blurRadius: 10,
-                                offset: Offset(4, 4)),
-                            BoxShadow(
-                                color: Colors.white.withOpacity(0.7),
-                                blurRadius: 5,
-                                offset: Offset(-4, -4)),
-                          ],
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.white.withOpacity(0.8),
-                              Colors.white.withOpacity(0.6)
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                        ),
-                        child: ListTile(
-                          contentPadding: EdgeInsets.all(20),
-                          title: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (role == "admin")
-                                Row(
-                                  children: [
-                                    Icon(Icons.person,
-                                        color: Colors.blueGrey, size: 22),
-                                    SizedBox(width: 8),
-                                    Text(
-                                      workName,
-                                      style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.black87),
-                                    ),
-                                  ],
-                                ),
-                              SizedBox(height: 6),
-
-                              // Leave Type & Status
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(Icons.event,
-                                          color: Colors.blueGrey, size: 20),
-                                      SizedBox(width: 6),
-                                      Text(
-                                        '${workDetail['leave_type']}',
-                                        style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w500,
-                                            color: Colors.black87),
-                                      ),
-                                    ],
-                                  ),
-                                  Container(
-                                    padding: EdgeInsets.symmetric(
-                                        horizontal: 12, vertical: 6),
-                                    decoration: BoxDecoration(
-                                      color: statusColor.withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Icon(statusIcon,
-                                            color: statusColor, size: 18),
-                                        SizedBox(width: 6),
-                                        Text(
-                                          statusText,
-                                          style: TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.bold,
-                                              color: statusColor),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: 6),
-
-                              // Leave Dates
-                              Row(
-                                children: [
-                                  Icon(Icons.date_range,
-                                      color: Colors.blueGrey, size: 20),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    '$formattedStartDate → $formattedEndDate',
-                                    style: TextStyle(
-                                        fontSize: 14, color: Colors.black54),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: 12),
-
-                              if (role == "admin" && statusText == 'Pending')
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [
-                                    _actionButton(
-                                        text: "Approve",
-                                        icon: Icons.check,
-                                        color: Colors.green,
-                                        onPressed: () {
-                                          FirebaseFirestore.instance
-                                              .collection('leave_records')
-                                              .doc(workDetail.id)
-                                              .update({
-                                            'status': 'Approved'
-                                          }).then((value) {
-                                            ScaffoldMessenger.of(context)
-                                                .showSnackBar(
-                                              SnackBar(
-                                                  content: Text(
-                                                      'Leave request approved!'),
-                                                  backgroundColor:
-                                                      Colors.green),
-                                            );
-                                            getData();
-                                          }).catchError((error) {
-                                            ScaffoldMessenger.of(context)
-                                                .showSnackBar(
-                                              SnackBar(
-                                                  content: Text(
-                                                      'Failed to approve leave request: $error'),
-                                                  backgroundColor: Colors.red),
-                                            );
-                                          });
-                                        }),
-                                    SizedBox(
-                                      width: 10,
-                                    ),
-                                    _actionButton(
-                                        text: "Reject",
-                                        icon: Icons.close,
-                                        color: Colors.red,
-                                        onPressed: () {
-                                          FirebaseFirestore.instance
-                                              .collection('leave_records')
-                                              .doc(workDetail.id)
-                                              .update({
-                                            'status': 'Rejected'
-                                          }).then((value) {
-                                            ScaffoldMessenger.of(context)
-                                                .showSnackBar(
-                                              SnackBar(
-                                                  content: Text(
-                                                      'Leave request rejected!'),
-                                                  backgroundColor: Colors.red),
-                                            );
-                                            getData();
-                                          }).catchError((error) {
-                                            ScaffoldMessenger.of(context)
-                                                .showSnackBar(
-                                              SnackBar(
-                                                  content: Text(
-                                                      'Failed to reject leave request: $error'),
-                                                  backgroundColor: Colors.red),
-                                            );
-                                          });
-                                        })
-                                  ],
-                                ),
-                              if (role == "employee" && statusText == "Pending")
-                                Align(
-                                  alignment: Alignment.bottomRight,
-                                  child: TextButton.icon(
-                                    onPressed: () {
-                                      FirebaseFirestore.instance
-                                          .collection('leave_records')
-                                          .doc(workDetail.id)
-                                          .delete()
-                                          .then((value) {
-                                        getData();
-                                      });
-                                    },
-                                    icon: Icon(Icons.delete,
-                                        color: Colors.redAccent),
-                                    label: Text('Cancel Request',
-                                        style:
-                                            TextStyle(color: Colors.redAccent)),
-                                  ),
-                                ),
-                            ],
-                          ),
-                          onTap: () => showLeaveRequestDetailDialog(workDetail),
-                        ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      value: selectedStatus,
+                      items: const [
+                        DropdownMenuItem(
+                            value: null, child: Text('All Status')),
+                        DropdownMenuItem(
+                            value: 'Pending', child: Text('Pending')),
+                        DropdownMenuItem(
+                            value: 'Approved', child: Text('Approved')),
+                        DropdownMenuItem(
+                            value: 'Rejected', child: Text('Rejected')),
+                      ],
+                      onChanged: (value) {
+                        setDialogState(() {
+                          selectedStatus = value;
+                        });
+                      },
+                      decoration: InputDecoration(
+                        labelText: 'Status',
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
                       ),
-                    );
+                    ),
+                    const SizedBox(height: 20),
+                    TextField(
+                      controller: dateRangeController,
+                      readOnly: true,
+                      onTap: () async {
+                        DateTimeRange? pickedRange = await showDateRangePicker(
+                          context: context,
+                          firstDate: DateTime(2000),
+                          lastDate:
+                              DateTime.now().add(const Duration(days: 365)),
+                        );
+                        if (pickedRange != null) {
+                          setDialogState(() {
+                            selectedDateRange = pickedRange;
+                            dateRangeController.text =
+                                ' ${pickedRange.start.toLocal().toString().split(' ')[0]} to ${pickedRange.end.toLocal().toString().split(' ')[0]}';
+                          });
+                        }
+                      },
+                      decoration: InputDecoration(
+                        labelText: 'Date Range',
+                        hintText: 'Select Date Range',
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              ),
+              actions: [
+                _actionButton(
+                  text: "Clear",
+                  icon: Icons.clear,
+                  color: Colors.red,
+                  onPressed: clearFilters,
+                ),
+                _actionButton(
+                  text: "Apply Filters",
+                  icon: Icons.check,
+                  color: Colors.green,
+                  onPressed: () {
+                    setState(() {
+                      filterStatus = selectedStatus;
+                      if (selectedDateRange != null) {
+                        filterStartDate = selectedDateRange!.start;
+                        filterEndDate = selectedDateRange!.end;
+                      }
+                    });
+                    Navigator.pop(context);
                   },
                 ),
               ],
-            ),
-          ),
-        ],
-      ),
-      floatingActionButton: role == 'teamlead'
-          ? FloatingActionButton(
-              backgroundColor: Colors.white,
-              onPressed: showLeaveRequestDialog,
-              child: Icon(Icons.add),
-            )
-          : SizedBox(),
+            );
+          },
+        );
+      },
     );
   }
+}
+
+Widget _buildShimmerList() {
+  return ListView.builder(
+    itemCount: 6,
+    itemBuilder: (context, index) {
+      return Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Shimmer.fromColors(
+          baseColor: Colors.grey[300]!,
+          highlightColor: Colors.grey[100]!,
+          child: Container(
+            height: 80,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
+
+Widget _buildEmptyState() {
+  return Center(
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Image.asset(
+          'assets/no-data.png',
+          height: 150,
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          "No leave records found",
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _actionButton({
+  required String text,
+  required IconData icon,
+  required Color color,
+  required VoidCallback onPressed,
+}) {
+  return ElevatedButton.icon(
+    onPressed: onPressed,
+    icon: Icon(icon, color: Colors.white),
+    label: Text(
+      text,
+      style: const TextStyle(color: Colors.white),
+    ),
+    style: ElevatedButton.styleFrom(
+      backgroundColor: color,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+    ),
+  );
 }

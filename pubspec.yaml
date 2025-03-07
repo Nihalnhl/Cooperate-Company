@@ -57,7 +57,6 @@ dependencies:
   side_sheet: ^1.0.4
   firebase_pagination: ^4.1.0
   dropdown_search: ^6.0.2
-  animated_custom_dropdown: ^3.1.1
   shimmer: ^3.0.0
   persistent_bottom_nav_bar: ^6.2.1
   curved_navigation_bar: ^1.0.6
@@ -71,15 +70,20 @@ dependencies:
   hive_ui: ^1.0.14
   flutter_secure_storage: ^9.2.4
   flutter_native_splash: ^2.4.4
+#  flutter_native_splash: ^2.4.4
+  flutter_spinkit: ^5.2.0
+  cached_network_image: ^3.3.0
+
 
 
 
 flutter_native_splash:
-  color: "#ffffff"  # Background color (white in this case)
-  image: assets/noti.png  # Your splash image
+  color: "#A1887F"  # Brown shade 300
+  image: assets/noti.png  # Splash image for most devices
   android_12:
-    color: "#ffffff"
-    image: assets/noti.png
+    color: "#A1887F"  # Brown shade 300 for Android 12+
+    image: assets/data.png  # Different splash image for Android 12+
+#    branding: assets/split.png
 
 
 
@@ -100,11 +104,11 @@ dev_dependencies:
   flutter_launcher_icons: ^0.14.3
 
 
-flutter_launcher_icons:
-  android: "launcher_icon"
-  ios: true
-  image_path: "image/log.png"
-  remove_alpha_ios: true
+#flutter_launcher_icons:
+#  android: "launcher_icon"
+#  ios: true
+#  image_path: "image/log.png"
+#  remove_alpha_ios: true
 
 
 # For information on the generic Dart part of this file, see the

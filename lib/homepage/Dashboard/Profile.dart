@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloudinary/cloudinary.dart';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -114,7 +114,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                // Profile Header
                 Row(
                   children: <Widget>[
                     CircleAvatar(
@@ -123,13 +122,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       backgroundImage: (selectedImage != null)
                           ? FileImage(selectedImage!) as ImageProvider
                           : (isOnline && data != null && data['url'] != null && data['url'].isNotEmpty)
-                          ? NetworkImage(data['url'])
-                          : (userProfile?.imagePath != null)
                           ? FileImage(File(userProfile!.imagePath!)) as ImageProvider
-                          : const AssetImage('assets/profile.jpeg') as ImageProvider,
+                      :null,
                       child:
-                      selectedImage == null ?
-                      Center(child: Icon(Icons.person,size: 30,)):
+                      selectedImage ==null ?
+                      Center(child: Icon(Icons.person_outline, size: 30, color: Colors.grey)):
                       SizedBox(),
                     ),
                     const SizedBox(width: 20),

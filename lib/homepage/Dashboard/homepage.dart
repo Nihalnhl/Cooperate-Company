@@ -9,6 +9,7 @@ import 'package:loginpage/homepage/Drawer/Leave.dart';
 import 'package:loginpage/homepage/Drawer/Workdetails2.dart';
 import 'package:loginpage/homepage/Drawer/Leave2.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 import '../../Hive/user_profile.dart';
 import '../../Loginpage/loginpage.dart';
@@ -21,7 +22,6 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final FirebaseAuth auth = FirebaseAuth.instance;
-  int index = 1;
   File? selectedImage;
   String? id;
   String? userid;
@@ -89,7 +89,7 @@ class _HomePageState extends State<HomePage> {
           .get();
 
       final List<Map<String, dynamic>> leaveData =
-      querySnapshot.docs.map((doc) => doc.data()).toList();
+          querySnapshot.docs.map((doc) => doc.data()).toList();
 
       Map<String, int> statusCounts = {};
       int approvedLeaves = 0;
@@ -119,7 +119,7 @@ class _HomePageState extends State<HomePage> {
       });
       print("Error fetching leave records: $e");
     }
-}
+  }
 
   void getData() {
     final User? user = auth.currentUser;
@@ -197,7 +197,7 @@ class _HomePageState extends State<HomePage> {
 
   void fetchWorkDetails() async {
     final QuerySnapshot snapshot =
-    await FirebaseFirestore.instance.collection('workDetails').get();
+        await FirebaseFirestore.instance.collection('workDetails').get();
 
     if (!mounted) return;
 
@@ -263,21 +263,18 @@ class _HomePageState extends State<HomePage> {
 
     connectivitySubscription =
         Connectivity().onConnectivityChanged.listen((result) {
-          if (!mounted) return;
-          setState(() {
-            isOnline = result != ConnectivityResult.none;
-          });
-        });
+      if (!mounted) return;
+      setState(() {
+        isOnline = result != ConnectivityResult.none;
+      });
+    });
   }
-
-
 
   @override
   void initState() {
     final FirebaseAuth auth = FirebaseAuth.instance;
     final User? user = auth.currentUser;
     final uid = user!.uid;
-
     setState(() {
       userid = uid;
     });
@@ -287,13 +284,28 @@ class _HomePageState extends State<HomePage> {
     profileBox = Hive.box<UserProfile>('profileBox');
     print(currentUser);
     loadImagehome();
-    fetchWorkDetails();
-    _fetchLeaveData();
-    fetchTotalEmployees();
-    fetchTLs();
+fetchData();
     _checkConnectivity();
+    isLoading =true;
   }
 
+  Future<void> fetchData() async {
+    try {
+      // Fetch data from Firestore or any other source
+      await _fetchLeaveData();
+      await fetchTotalEmployees();
+      await fetchTLs();
+       fetchWorkDetails();
+    } catch (e) {
+      print("Error fetching data: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
+  }
   @override
   void dispose() {
     // TODO: implement dispose
@@ -301,13 +313,12 @@ class _HomePageState extends State<HomePage> {
     connectivitySubscription?.cancel();
   }
 
-
   Widget build(BuildContext context) {
     loadImagehome();
     var userProfile = userid != null ? profileBox.get(userid!) : null;
     return StreamBuilder(
         stream:
-        FirebaseFirestore.instance.collection('user').doc(id).snapshots(),
+            FirebaseFirestore.instance.collection('user').doc(id).snapshots(),
         builder: (context, snapshots) {
           final data = snapshots.data;
           if (snapshots.hasData) {
@@ -316,10 +327,10 @@ class _HomePageState extends State<HomePage> {
                 appBar: AppBar(
                   title: Text('Team Lead ',
                       style:
-                      TextStyle(fontSize: 25, fontWeight: FontWeight.bold)),
+                          TextStyle(fontSize: 25, fontWeight: FontWeight.bold)),
                   actions: [
-                    IconButton(
-                        onPressed: () {}, icon: Icon(Icons.notifications)),
+                    // IconButton(
+                    //     onPressed: () {}, icon: Icon(Icons.notifications)),
                     // IconButton(
                     //     onPressed: () {
                     //       Navigator.push(
@@ -350,28 +361,37 @@ class _HomePageState extends State<HomePage> {
                         decoration: BoxDecoration(
                           color: Colors.grey.shade300,
                         ),
-                        child: Column(
+                        child: isLoading
+                            ? _buildShimmerDrawerHeader()
+                            : Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             CircleAvatar(
                               radius: 40,
-
                               backgroundImage: (selectedImage != null)
                                   ? FileImage(selectedImage!) as ImageProvider
-                                  : (isOnline && data['url'] != null &&
-                                  data['url'].isNotEmpty)
-                                  ? NetworkImage(data['url'])
-                                  : (userProfile?.imagePath != null)
-                                  ? FileImage(File(
-                                  userProfile!.imagePath!)) as ImageProvider
-                                  : const AssetImage(
-                                  'assets/profile.jpeg') as ImageProvider,
+                                  : (isOnline &&
+                                          data['url'] != null &&
+                                          data['url'].isNotEmpty)
+                                      ? NetworkImage(data['url'])
+                                      : (userProfile?.imagePath != null)
+                                          ? FileImage(
+                                                  File(userProfile!.imagePath!))
+                                              as ImageProvider
+                                          : null,
+                          child:
+                          selectedImage ==null ?
+                          Center(child: Icon(Icons.person_outline, size: 30, color: Colors.grey)):
+                          SizedBox(),
+
                             ),
                             SizedBox(height: 5),
                             Text(
                               isOnline
                                   ? (data?["name"] ?? "No Name")
-                                  : (userProfile?.name ?? data?["name"] ?? "No Name"),
+                                  : (userProfile?.name ??
+                                      data?["name"] ??
+                                      "No Name"),
                               style: TextStyle(
                                   color: Colors.black,
                                   fontSize: 18,
@@ -394,16 +414,17 @@ class _HomePageState extends State<HomePage> {
                                   builder: (context) => Workdetails2()));
                         },
                       ),
-                      ListTile(
-                        leading: Icon(Icons.people_outline),
-                        title: Text('Schedule and Attendence'),
-                        onTap: () {
-                          Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => LoginLogoutScreen1()));
-                        },
-                      ),
+
+                      // ListTile(
+                      //   leading: Icon(Icons.people_outline),
+                      //   title: Text('Schedule and Attendence'),
+                      //   onTap: () {
+                      //     Navigator.push(
+                      //         context,
+                      //         MaterialPageRoute(
+                      //             builder: (context) => LoginLogoutScreen1()));
+                      //   },
+                      // ),
                       ListTile(
                         leading: Icon(Icons.person_off_outlined),
                         title: Text('Employee Leaves'),
@@ -425,7 +446,9 @@ class _HomePageState extends State<HomePage> {
                     ],
                   ),
                 ),
-                body: SingleChildScrollView(
+                body: isLoading
+                    ? _buildShimmerLoader()
+                    : SingleChildScrollView(
                   child: Column(
                     children: [
                       SizedBox(height: 50),
@@ -490,8 +513,7 @@ class _HomePageState extends State<HomePage> {
                                 ),
                                 SizedBox(height: 10),
                                 Text(
-                                  '${workDonePercentage.toStringAsFixed(
-                                      0)}% of the tasks have been completed.',
+                                  '${workDonePercentage.toStringAsFixed(0)}% of the tasks have been completed.',
                                   style: TextStyle(fontSize: 16),
                                 ),
                               ],
@@ -523,11 +545,11 @@ class _HomePageState extends State<HomePage> {
                               BarSeries<ProgressData, String>(
                                 dataSource: progressData,
                                 xValueMapper: (ProgressData data, _) =>
-                                data.assignedTo,
+                                    data.assignedTo,
                                 yValueMapper: (ProgressData data, _) =>
-                                data.progress,
+                                    data.progress,
                                 dataLabelSettings:
-                                DataLabelSettings(isVisible: true),
+                                    DataLabelSettings(isVisible: true),
                                 markerSettings: MarkerSettings(isVisible: true),
                                 color: Colors.brown.shade300,
                               ),
@@ -544,10 +566,10 @@ class _HomePageState extends State<HomePage> {
                 appBar: AppBar(
                   title: Text('Admin Dashboard',
                       style:
-                      TextStyle(fontSize: 25, fontWeight: FontWeight.bold)),
+                          TextStyle(fontSize: 25, fontWeight: FontWeight.bold)),
                   actions: [
-                    IconButton(
-                        onPressed: () {}, icon: Icon(Icons.notifications)),
+                    // IconButton(
+                    //     onPressed: () {}, icon: Icon(Icons.notifications)),
                     // IconButton(
                     //     onPressed: () {
                     //       Navigator.push(
@@ -576,12 +598,29 @@ class _HomePageState extends State<HomePage> {
                         decoration: BoxDecoration(
                           color: Colors.grey.shade300,
                         ),
-                        child: Column(
+                        child: isLoading
+                            ? _buildShimmerDrawerHeader()
+                            : Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             CircleAvatar(
                               radius: 40,
-                              backgroundImage: FileImage(File(data!['url'])),
+                              backgroundImage: (selectedImage != null)
+                                  ? FileImage(selectedImage!) as ImageProvider
+                                  : (isOnline &&
+                                  data['url'] != null &&
+                                  data['url'].isNotEmpty)
+                                  ? NetworkImage(data['url'])
+                                  : (userProfile?.imagePath != null)
+                                  ? FileImage(
+                                  File(userProfile!.imagePath!))
+                              as ImageProvider
+                                  : null,
+                              child:
+                              selectedImage ==null ?
+                              Center(child: Icon(Icons.person_outline, size: 30, color: Colors.grey)):
+                              SizedBox(),
+
                             ),
                             SizedBox(height: 5),
                             Text(
@@ -608,16 +647,16 @@ class _HomePageState extends State<HomePage> {
                                   builder: (context) => Workdetails2()));
                         },
                       ),
-                      ListTile(
-                        leading: Icon(Icons.people_outline),
-                        title: Text('Schedule and Attendence'),
-                        onTap: () {
-                          Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => LoginLogoutScreen1()));
-                        },
-                      ),
+                      // ListTile(
+                      //   leading: Icon(Icons.people_outline),
+                      //   title: Text('Schedule and Attendence'),
+                      //   onTap: () {
+                      //     Navigator.push(
+                      //         context,
+                      //         MaterialPageRoute(
+                      //             builder: (context) => LoginLogoutScreen1()));
+                      //   },
+                      // ),
                       ListTile(
                         leading: Icon(Icons.person_off_outlined),
                         title: Text('Leaves'),
@@ -631,7 +670,9 @@ class _HomePageState extends State<HomePage> {
                     ],
                   ),
                 ),
-                body: SingleChildScrollView(
+                body: isLoading
+                    ? _buildShimmerLoader()
+                    : SingleChildScrollView(
                   child: Column(
                     children: [
                       SizedBox(height: 50),
@@ -776,10 +817,10 @@ class _HomePageState extends State<HomePage> {
                     style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
                   ),
                   actions: [
-                    IconButton(
-                      icon: Icon(Icons.notifications_outlined, size: 28),
-                      onPressed: () {},
-                    ),
+                    // IconButton(
+                    //   icon: Icon(Icons.notifications_outlined, size: 28),
+                    //   onPressed: () {},
+                    // ),
                   ],
                 ),
                 drawer: Drawer(
@@ -787,157 +828,217 @@ class _HomePageState extends State<HomePage> {
                     padding: EdgeInsets.zero,
                     children: [
                       DrawerHeader(
-                        decoration: BoxDecoration(
-                          color: Colors.brown.shade300,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            CircleAvatar(
-                              radius: 40,
-                              backgroundImage: (selectedImage != null)
-                                  ? FileImage(selectedImage!) as ImageProvider
-                                  : (isOnline && data['url'] != null &&
-                                  data['url'].isNotEmpty)
-                                  ? NetworkImage(data['url'])
-                                  : (userProfile?.imagePath != null)
-                                  ? FileImage(File(
-                                  userProfile!.imagePath!)) as ImageProvider
-                                  : const AssetImage(
-                                  'assets/profile.jpeg') as ImageProvider,
-                            ),
-                            Text(
-                              isOnline
-                                  ? (data?["name"] ?? "No Name")
-                                  : (userProfile?.name ?? data?["name"] ?? "No Name"),
-                              style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white),
-                            ),
-                            Text(
-                              isOnline
-                                  ? (data?["email"] ?? userProfile?.email ?? "No Email")
-                                  : (userProfile?.email ?? data?["email"] ?? "No Email"),
-                              style: TextStyle(
-                                  fontSize: 14, color: Colors.white70),
-                            ),
-                          ],
-                        ),
+                        decoration: BoxDecoration(color: Colors.brown.shade300),
+                        child: isLoading
+                            ? _buildShimmerDrawerHeader()
+                            : Column(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 40,
+                                    backgroundImage: (selectedImage != null)
+                                        ? FileImage(selectedImage!)
+                                            as ImageProvider
+                                        : (isOnline &&
+                                                data['url'] != null &&
+                                                data['url'].isNotEmpty)
+                                            ? NetworkImage(data['url'])
+                                            : (userProfile?.imagePath != null)
+                                                ? FileImage(File(userProfile!
+                                                        .imagePath!))
+                                                    as ImageProvider
+                                                :null,
+                                    child:
+                                    selectedImage ==null ?
+                                    Center(child: Icon(Icons.person_outline, size: 30, color: Colors.grey)):
+                                    SizedBox(),                                  ),
+                                  Text(
+                                    isOnline
+                                        ? (data?["name"] ?? "No Name")
+                                        : (userProfile?.name ??
+                                            data?["name"] ??
+                                            "No Name"),
+                                    style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white),
+                                  ),
+                                  Text(
+                                    isOnline
+                                        ? (data?["email"] ??
+                                            userProfile?.email ??
+                                            "No Email")
+                                        : (userProfile?.email ??
+                                            data?["email"] ??
+                                            "No Email"),
+                                    style: TextStyle(
+                                        fontSize: 14, color: Colors.white70),
+                                  ),
+                                ],
+                              ),
                       ),
                       buildDrawerItem(
-                          icon: Icons.dashboard_outlined,
-                          label: "Work Details",
-                          onTap: () =>
-                              Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (context) => Workdetails2()))),
+                        icon: Icons.dashboard_outlined,
+                        label: "Work Details",
+                        onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) => Workdetails2())),
+                      ),
                       buildDrawerItem(
-                          icon: Icons.people_outline,
-                          label: "Schedule & Attendance",
-                          onTap: () =>
-                              Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (context) =>
-                                          LoginLogoutScreen1()))),
+                        icon: Icons.people_outline,
+                        label: "Schedule & Attendance",
+                        onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) => LoginLogoutScreen1())),
+                      ),
                       buildDrawerItem(
-                          icon: Icons.person_off_outlined,
-                          label: "Leaves",
-                          onTap: () =>
-                              Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (context) => Leave()))),
-
+                        icon: Icons.person_off_outlined,
+                        label: "Leaves",
+                        onTap: () => Navigator.push(context,
+                            MaterialPageRoute(builder: (context) => Leave())),
+                      ),
                     ],
                   ),
                 ),
-                body: SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16.0, vertical: 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 20),
-                        SfCircularChart(
-                          title: ChartTitle(
-                              text: 'Leave Status Breakdown',
-                              textStyle:
-                              TextStyle(fontWeight: FontWeight.bold)),
-                          legend: Legend(
-                              isVisible: true,
-                              overflowMode: LegendItemOverflowMode.wrap),
-                          series: <CircularSeries>[
-                            PieSeries<ChartData4, String>(
-                              dataSource: chartData,
-                              xValueMapper: (ChartData4 data, _) =>
-                              data.status,
-                              yValueMapper: (ChartData4 data, _) =>
-                              data.count,
-                              dataLabelMapper: (ChartData4 data, _) =>
-                              '${data.status}: ${data.count}',
-                              dataLabelSettings:
-                              DataLabelSettings(isVisible: true),
-                            ),
-                          ],
+                body: isLoading
+                    ? _buildShimmerLoader()
+                    : SingleChildScrollView(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0, vertical: 20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 20),
+                              SfCircularChart(
+                                title: ChartTitle(
+                                    text: 'Leave Status Breakdown',
+                                    textStyle:
+                                        TextStyle(fontWeight: FontWeight.bold)),
+                                legend: Legend(
+                                    isVisible: true,
+                                    overflowMode: LegendItemOverflowMode.wrap),
+                                series: <CircularSeries>[
+                                  PieSeries<ChartData4, String>(
+                                    dataSource: chartData,
+                                    xValueMapper: (ChartData4 data, _) =>
+                                        data.status,
+                                    yValueMapper: (ChartData4 data, _) =>
+                                        data.count,
+                                    dataLabelMapper: (ChartData4 data, _) =>
+                                        '${data.status}: ${data.count}',
+                                    dataLabelSettings:
+                                        DataLabelSettings(isVisible: true),
+                                  ),
+                                ],
+                              ),
+                              buildSectionHeader("Work Progress"),
+                              SizedBox(height: 10),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  _buildStatCard(
+                                    "Work Pending",
+                                    "${workPendingPercentage.toStringAsFixed(0)}%",
+                                    Colors.redAccent,
+                                  ),
+                                  _buildStatCard(
+                                    "Work Done",
+                                    "${workDonePercentage.toStringAsFixed(0)}%",
+                                    Colors.greenAccent,
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 20),
+                              buildSectionHeader("General Stats"),
+                              SizedBox(height: 10),
+                              buildInfoCard(
+                                title: "Leaves Taken: $leavesTaken",
+                                subtitle: "Performance: Good",
+                              ),
+                              SizedBox(height: 10),
+                              buildInfoCard(
+                                title: "Pending Projects: $pending",
+                                subtitle: "Focus Needed",
+                              ),
+                            ],
+                          ),
                         ),
-                        buildSectionHeader("Work Progress"),
-                        SizedBox(height: 10),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            _buildStatCard(
-                              "Work Pending",
-                              "${workPendingPercentage.toStringAsFixed(0)}%",
-                              Colors.redAccent,
-                            ),
-                            _buildStatCard(
-                              "Work Done",
-                              "${workDonePercentage.toStringAsFixed(0)}%",
-                              Colors.greenAccent,
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 20),
-                        buildSectionHeader("General Stats"),
-                        SizedBox(height: 10),
-                        buildInfoCard(
-                          title: "Leaves Taken: $leavesTaken",
-                          subtitle: "Performance: Good",
-                        ),
-                        SizedBox(height: 10),
-                        buildInfoCard(
-                          title: "Pending Projects: $pending",
-                          subtitle: "Focus Needed",
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                      ),
               );
             } else {
-              return Center(
-                child: Container(
-                  color: Colors.grey.shade300,
-                  child: Icon(Icons.cached_rounded),
-                ),
-              );
+              return Center(child: CircularProgressIndicator());
             }
           } else {
-            return Center(
-              child: Container(
-                color: Colors.grey.shade300,
-                child: Icon(Icons.cached_rounded),
-              ),
-            );
+            return Center(child: CircularProgressIndicator());
           }
         });
   }
 
-  // Improved drawer item with hover effect
+  Widget _buildShimmerLoader() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20),
+      child: Column(
+        children: [
+          Shimmer.fromColors(
+            baseColor: Colors.grey.shade300,
+            highlightColor: Colors.grey.shade100,
+            child: Container(
+              width: double.infinity,
+              height: 200,
+              decoration: BoxDecoration(
+                  color: Colors.white, borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
+          SizedBox(height: 20),
+          _buildShimmerBox(),
+          SizedBox(height: 10),
+          _buildShimmerBox(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildShimmerBox() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey.shade300,
+      highlightColor: Colors.grey.shade100,
+      child: Container(
+        width: double.infinity,
+        height: 80,
+        decoration: BoxDecoration(
+            color: Colors.white, borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  Widget _buildShimmerDrawerHeader() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Shimmer.fromColors(
+          baseColor: Colors.grey.shade300,
+          highlightColor: Colors.grey.shade100,
+          child: CircleAvatar(radius: 40, backgroundColor: Colors.white),
+        ),
+        SizedBox(height: 10),
+        Shimmer.fromColors(
+          baseColor: Colors.grey.shade300,
+          highlightColor: Colors.grey.shade100,
+          child: Container(width: 100, height: 20, color: Colors.white),
+        ),
+        SizedBox(height: 5),
+        Shimmer.fromColors(
+          baseColor: Colors.grey.shade300,
+          highlightColor: Colors.grey.shade100,
+          child: Container(width: 150, height: 15, color: Colors.white),
+        ),
+      ],
+    );
+  }
+
   Widget buildDrawerItem({
     required IconData icon,
     required String label,

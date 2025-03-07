@@ -3,6 +3,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:hive/hive.dart';
 import 'package:intl/intl.dart';
 import 'package:loginpage/Hive/user_profile.dart';
@@ -33,15 +34,23 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
   @override
   void initState() {
     super.initState();
-    _fetchUserData();
-    _fetchWorkTime();
-    _fetchRequiredWorkTime();
-    _fetchHiveData();
+    _initializeData();
     Connectivity().onConnectivityChanged.listen((ConnectivityResult result) {
       if (result != ConnectivityResult.none) {
         _syncDataToFirestore();
       }
     });
+  }
+
+  Future<void> _initializeData() async {
+    setState(() => _isLoading = true);
+    await Future.wait([
+      _fetchUserData(),
+      _fetchWorkTime(),
+      _fetchRequiredWorkTime(),
+      _fetchHiveData(),
+    ]);
+    setState(() => _isLoading = false);
   }
 
   Future<void> _fetchHiveData() async {
@@ -56,7 +65,8 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
         checkOutTime = attendance.Logout;
         checkInMillis = attendance.checkInMillis;
         workTime = attendance.workTime;
-        _isCheckedIn = attendance.checkInMillis != null && attendance.logoutMillis == null;
+        _isCheckedIn =
+            attendance.checkInMillis != null && attendance.logoutMillis == null;
       });
 
       if (_isCheckedIn) {
@@ -96,7 +106,6 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
 
   Future<void> _fetchWorkTime() async {
     if (!mounted) return;
-
     setState(() {
       checkInTime = null;
       checkOutTime = null;
@@ -106,9 +115,7 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
     if (_uid == null) return;
 
     if (!mounted) return;
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() {});
 
     final now = DateTime.now();
     final formattedDate = DateFormat('yyyy-MM-dd').format(now);
@@ -143,31 +150,18 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
         _startTimer();
       }
     }
-
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-    }
   }
 
-
   void _startTimer() {
+    _timer?.cancel();
     if (_isCheckedIn && checkInMillis != null) {
-      _timer?.cancel();
-
-      int nowMillis = DateTime.now().millisecondsSinceEpoch;
-      setState(() {
-        workTime += (nowMillis - checkInMillis!);
-        checkInMillis = nowMillis;
-      });
-
-      _timer = Timer.periodic(Duration(seconds: 1), (timer) {
-        setState(() {
-          int nowMillis = DateTime.now().millisecondsSinceEpoch;
-          workTime += (nowMillis - checkInMillis!);
-          checkInMillis = nowMillis;
-        });
+      _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (mounted) {
+          setState(() {
+            int nowMillis = DateTime.now().millisecondsSinceEpoch;
+            workTime = nowMillis - checkInMillis!;
+          });
+        }
       });
     }
   }
@@ -184,18 +178,16 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
       return;
     }
 
+    setState(() {
+      _isLoading = true;
+    });
+
     final now = DateTime.now();
     final formattedDate = DateFormat('yyyy-MM-dd').format(now);
     final formattedTime = DateFormat('hh:mm a').format(now);
     final nowMillis = now.millisecondsSinceEpoch;
 
     var attendanceBox = Hive.box<Attendance>('attendanceBox');
-    if (attendanceBox.containsKey(formattedDate)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('You have already checked in today.'), backgroundColor: Colors.red),
-      );
-      return;
-    }
 
     var querySnapshot = await _firestore
         .collection('Attendance')
@@ -204,21 +196,24 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
         .get();
 
     if (querySnapshot.docs.isNotEmpty) {
+      setState(() {
+        _isLoading = false;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('You have already checked in today.'), backgroundColor: Colors.red),
+        SnackBar(
+            content: Text('You have already checked in today.'),
+            backgroundColor: Colors.red),
       );
       return;
     }
-
-    if (mounted) {
-      setState(() {
-        checkInTime = formattedTime;
-        checkOutTime = null;
-        checkInMillis = nowMillis;
-        workTime = 0;
-
-      });
-    }
+    setState(() {
+      checkInTime = formattedTime;
+      checkOutTime = null;
+      checkInMillis = nowMillis;
+      workTime = 0;
+      _isCheckedIn = true;
+      _isLoading = false;
+    });
 
     _startTimer();
 
@@ -247,12 +242,15 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
     print("Check-in data saved to Hive: ${attendance.toJson()}");
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Checked in at $formattedTime'), backgroundColor: Colors.green),
+      SnackBar(
+          content: Text('Checked in at $formattedTime'),
+          backgroundColor: Colors.green),
     );
 
-    _syncDataToFirestore();
+    Future.delayed(Duration(seconds: 2), () {
+      _syncDataToFirestore();
+    });
   }
-
 
   Future<void> _syncDataToFirestore() async {
     if (_uid == null) return;
@@ -296,15 +294,13 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
 
           attendance.isSynced = true;
           attendance.save();
-          print("syncing to firestore");
+          print("Synced data to Firestore");
         } catch (e) {
           print("Error syncing data: $e");
         }
       }
     }
-
     _clearHiveData();
-    _fetchWorkTime();
   }
 
   Future<void> _clearHiveData() async {
@@ -316,13 +312,13 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
   }
 
   Future<void> _recordCheckOut() async {
+    setState(() {
+      _isLoading = true;
+    });
     final now = DateTime.now();
     final formattedTime = DateFormat('hh:mm a').format(now);
     final nowMillis = now.millisecondsSinceEpoch;
-
     final formattedDate = DateFormat('yyyy-MM-dd').format(now);
-
-
     final querySnapshot = await _firestore
         .collection('Attendance')
         .where('UserId', isEqualTo: _uid)
@@ -334,6 +330,9 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
       final data = doc.data();
 
       if (data['LogoutTime'] != null) {
+        setState(() {
+          _isLoading = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('You have already checked out today.'),
@@ -356,7 +355,7 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
       } else {
         print("Error: No check-in record found for today in Hive.");
       }
-
+      _stopTimer();
       try {
         await _firestore.collection('Attendance').doc(doc.id).update({
           'Logout': formattedTime,
@@ -370,10 +369,9 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
 
       setState(() {
         checkOutTime = formattedTime;
-
+        _isCheckedIn = false;
+        _isLoading = false;
       });
-
-      _stopTimer();
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -381,9 +379,9 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
           backgroundColor: Colors.red,
         ),
       );
-
       _syncDataToFirestore();
     } else {
+      setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('No check-in record found for today.'),
@@ -405,7 +403,7 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
 
   @override
   void dispose() {
-    _stopTimer();
+    _timer?.cancel();
     super.dispose();
   }
 
@@ -430,180 +428,192 @@ class _CheckInOutPageState extends State<CheckInOutPage1> {
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               SizedBox(
                 height: 15,
               ),
-              if (_isLoading)
-                const Center(child: CircularProgressIndicator())
-              else
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        Card(
-                          elevation: 2,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Column(
-                              children: [
-                                Row(
+              _isLoading
+                  ? Center(
+                      child: SpinKitFadingCircle(
+                        color: Colors.brown,
+                        size: 50.0,
+                      ),
+                    )
+                  : Expanded(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          children: [
+                            Card(
+                              elevation: 2,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: Column(
                                   children: [
-                                    Expanded(
-                                      child: _TimeCard(
-                                        title: 'Check-in',
-                                        time: checkInTime ?? '--:--',
-                                        icon: Icons.login,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: _TimeCard(
-                                        title: 'Check-out',
-                                        time: checkOutTime ?? '--:--',
-                                        icon: Icons.logout,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 24),
-                                SizedBox(
-                                  height: 200,
-                                  width: 200,
-                                  child: Stack(
-                                    fit: StackFit.expand,
-                                    children: [
-                                      CircularProgressIndicator(
-                                        value: _progressValue,
-                                        strokeWidth: 12,
-                                        backgroundColor: Colors.grey[200],
-                                        valueColor: AlwaysStoppedAnimation<Color>(
-                                          Colors.brown[400]!,
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: _TimeCard(
+                                            title: 'Check-in',
+                                            time: checkInTime ?? '--:--',
+                                            icon: Icons.login,
+                                          ),
                                         ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: _TimeCard(
+                                            title: 'Check-out',
+                                            time: checkOutTime ?? '--:--',
+                                            icon: Icons.logout,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 24),
+                                    SizedBox(
+                                      height: 200,
+                                      width: 200,
+                                      child: Stack(
+                                        fit: StackFit.expand,
+                                        children: [
+                                          CircularProgressIndicator(
+                                            value: _progressValue,
+                                            strokeWidth: 12,
+                                            backgroundColor: Colors.grey[200],
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                              Colors.brown[400]!,
+                                            ),
+                                          ),
+                                          Center(
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const Icon(
+                                                  Icons.timer,
+                                                  size: 24,
+                                                  color: Colors.grey,
+                                                ),
+                                                const SizedBox(height: 8),
+                                                Text(
+                                                  formatDuration(workTime),
+                                                  style: const TextStyle(
+                                                    fontSize: 24,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                                const Text(
+                                                  'Work Time',
+                                                  style: TextStyle(
+                                                    color: Colors.grey,
+                                                    fontSize: 14,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                      Center(
-                                        child: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            const Icon(
-                                              Icons.timer,
-                                              size: 24,
-                                              color: Colors.grey,
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Text(
-                                              formatDuration(workTime),
-                                              style: const TextStyle(
-                                                fontSize: 24,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                            const Text(
-                                              'Work Time',
-                                              style: TextStyle(
-                                                color: Colors.grey,
-                                                fontSize: 14,
-                                              ),
-                                            ),
-                                          ],
+                                    ),
+                                    if (_creatorRole == 'employee') ...[
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        'Required: ${formatDuration(_requiredWorkTime)}',
+                                        style: const TextStyle(
+                                          color: Colors.grey,
+                                          fontSize: 14,
                                         ),
                                       ),
                                     ],
-                                  ),
-                                ),
-                                if (_creatorRole == 'employee') ...[
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    'Required: ${formatDuration(_requiredWorkTime)}',
-                                    style: const TextStyle(
-                                      color: Colors.grey,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ],
-                                const SizedBox(height: 24),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton.icon(
-                                    onPressed: _isCheckedIn
-                                        ? (workTime >= _requiredWorkTime
-                                        ? _recordCheckOut
-                                        : null)
-                                        : _recordCheckIn,
-                                    icon: Icon(
-                                      _isCheckedIn ? Icons.logout : Icons.login,
-                                      color: Colors.white,
-                                    ),
-                                    label: Text(
-                                      _isCheckedIn ? 'Check-out' : 'Check-in',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.brown[400],
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 16,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Card(
-                          elevation: 1,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: const [
-                                    Icon(Icons.calendar_today,
-                                        size: 16, color: Colors.grey),
-                                    SizedBox(width: 8),
-                                    Text(
-                                      "Today's Progress",
-                                      style: TextStyle(
-                                        color: Colors.grey,
-                                        fontSize: 14,
+                                    const SizedBox(height: 24),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: ElevatedButton.icon(
+                                        onPressed: _isCheckedIn
+                                            ? (workTime >= _requiredWorkTime
+                                                ? _recordCheckOut
+                                                : null)
+                                            : _recordCheckIn,
+                                        icon: Icon(
+                                          _isCheckedIn
+                                              ? Icons.logout
+                                              : Icons.login,
+                                          color: Colors.white,
+                                        ),
+                                        label: Text(
+                                          _isCheckedIn
+                                              ? 'Check-out'
+                                              : 'Check-in',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.brown[400],
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 16,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 12),
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(4),
-                                  child: LinearProgressIndicator(
-                                    value: _progressValue,
-                                    backgroundColor: Colors.grey[200],
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      Colors.brown[400]!,
-                                    ),
-                                    minHeight: 8,
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
-                          ),
+                            const SizedBox(height: 16),
+                            Card(
+                              elevation: 1,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: const [
+                                        Icon(Icons.calendar_today,
+                                            size: 16, color: Colors.grey),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          "Today's Progress",
+                                          style: TextStyle(
+                                            color: Colors.grey,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(4),
+                                      child: LinearProgressIndicator(
+                                        value: _progressValue,
+                                        backgroundColor: Colors.grey[200],
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                          Colors.brown[400]!,
+                                        ),
+                                        minHeight: 8,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                ),
             ],
           ),
         ),

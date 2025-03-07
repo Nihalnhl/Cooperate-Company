@@ -10,7 +10,7 @@ class SetWorkTimePage extends StatefulWidget {
   final FirebaseAuth auth = FirebaseAuth.instance;
   final _formKey = GlobalKey<FormState>();
   List<Map<String, dynamic>> employees = [];
-  List<FocusNode> _focusNodes = []; // Track FocusNodes
+  List<FocusNode> _focusNodes = [];
 
   @override
   void initState() {
@@ -62,6 +62,7 @@ class SetWorkTimePage extends StatefulWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Required work time updated successfully!'),
+          backgroundColor: Colors.green,
         ),
       );
     }

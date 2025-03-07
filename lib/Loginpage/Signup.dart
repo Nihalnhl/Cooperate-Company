@@ -42,6 +42,7 @@ class _SignUpPageState extends State<SignUpPage> {
         'phone':_phoneController.text,
         'address':_addressController.text,
         "url":defaultProfileImageUrl,
+        "role":"employee"
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

@@ -61,6 +61,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
           });
         }
       });
+      _loadImage();
     }
 
     Future<void> _loadProfileData() async {
@@ -105,11 +106,9 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
     Future<void> _pickImage() async {
       final returnedImage = await ImagePicker().pickImage(source: ImageSource.gallery);
       if (returnedImage != null) {
-        final imagePath = returnedImage.path;
         setState(() {
-          selectedImage = File(imagePath);
+          selectedImage = File(returnedImage.path);
         });
-        await saveImagePath(imagePath);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('No image selected.')),
@@ -117,15 +116,15 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
       }
     }
 
-    Future<void> saveImagePath(String path) async {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(userId!, path);
-    }
+      Future<void> saveImagePath(String path) async {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(userId!, path);
+      }
 
-    Future<String?> getImagePath() async {
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getString(userId!);
-    }
+      Future<String?> getImagePath() async {
+        final prefs = await SharedPreferences.getInstance();
+        return prefs.getString(userId!);
+      }
 
     Future<void> updateUserProfile() async {
       if (_formKey.currentState!.validate()) {
@@ -154,12 +153,18 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
             await profileBox.put(user.uid, userProfile);
 
+            if (selectedImage != null) {
+              await saveImagePath(selectedImage!.path);
+            }
+
             if (await _checkConnectivity()) {
               await _syncProfileWithFirebase(user.uid, userProfile);
             } else {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Changes saved offline.'),
-                backgroundColor: Colors.green,),
+                const SnackBar(
+                  content: Text('Changes saved offline.'),
+                  backgroundColor: Colors.green,
+                ),
               );
             }
           } catch (e) {
@@ -301,7 +306,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
           'email': userProfile.email,
           'address': userProfile.address,
           'phone': userProfile.phone,
-          'url': userProfile.imagePath ?? '',
+          // 'url': userProfile.imagePath ?? '',
         });
 
         if (userProfile.email != user.email) {
@@ -436,10 +441,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
-
           final data = snapshot.data;
           final userProfile = profileBox.get(userId!);
-
           return Scaffold(
             backgroundColor: Colors.grey[50],
             appBar: AppBar(
@@ -497,6 +500,9 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
     }
 
     Widget _buildProfileAvatar(DocumentSnapshot? data) {
+      bool hasNetworkImage = data?['url']?.isNotEmpty == true;
+      bool hasLocalImage = selectedImage != null;
+
       return GestureDetector(
         onTap: isEdit ? _pickImage : null,
         child: Container(
@@ -512,18 +518,17 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
           child: CircleAvatar(
             radius: 70,
             backgroundColor: Colors.white,
-            backgroundImage: selectedImage != null
+            backgroundImage: hasLocalImage
                 ? FileImage(selectedImage!)
-                : (data?['url']?.isNotEmpty == true
-                ? FileImage(File(data!['url']))
-                : const AssetImage('assets/profile.jpeg')) as ImageProvider,
-            child: selectedImage == null && data?['url']?.isEmpty != false
+                : (hasNetworkImage ? FileImage(File(data!['url'])) : null),
+            child: selectedImage == null
                 ? const Icon(Icons.person_outline, size: 50, color: Colors.grey)
                 : null,
           ),
         ),
       );
     }
+
 
     Widget _buildEditForm() {
       return Container(

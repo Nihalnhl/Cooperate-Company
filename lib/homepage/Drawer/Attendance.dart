@@ -5,8 +5,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive/hive.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:syncfusion_flutter_datepicker/datepicker.dart';
-
 import '../../Hive/attendance_model.dart';
 
 class LoginLogoutScreen1 extends StatefulWidget {
@@ -47,7 +47,7 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
     });
     _scrollController.addListener(() {
       if (_scrollController.position.pixels ==
-          _scrollController.position.maxScrollExtent &&
+              _scrollController.position.maxScrollExtent &&
           !isLoadingMore) {
         if (hasMoreData) {
           loadMoreData();
@@ -56,6 +56,7 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
     });
     getData();
   }
+
   bool isOnline = true;
   Future<void> checkConnectivity() async {
     var connectivityResult = await Connectivity().checkConnectivity();
@@ -63,6 +64,7 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
       isOnline = connectivityResult != ConnectivityResult.none;
     });
   }
+
   void loadMoreData() async {
     if (!hasMoreData || isLoadingMore) return;
     setState(() {
@@ -79,7 +81,9 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
     final snapshot = await baseQuery.get();
     if (snapshot.docs.isNotEmpty) {
       setState(() {
-        currentData.addAll(snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList());
+        currentData.addAll(snapshot.docs
+            .map((doc) => doc.data() as Map<String, dynamic>)
+            .toList());
         lastDocument = snapshot.docs.last;
       });
     } else {
@@ -93,24 +97,29 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
   }
 
   Future<void> getData() async {
+    setState(() {
+      isLoading = true;
+    });
 
-    final Box<Attendance> attendanceBox = await Hive.openBox<Attendance>('attendanceBox');
+    final Box<Attendance> attendanceBox =
+        await Hive.openBox<Attendance>('attendanceBox');
     final List<Attendance> offlineData = attendanceBox.values.toList();
 
     if (mounted) {
       setState(() {
-        currentData = offlineData.map((attendance) => attendance.toJson()).toList();
-        isLoading = false;
+        currentData =
+            offlineData.map((attendance) => attendance.toJson()).toList();
         print("Hive Data: $currentData");
       });
     }
+
     var connectivityResult = await Connectivity().checkConnectivity();
     if (connectivityResult != ConnectivityResult.none) {
       try {
-
         final User? user = auth.currentUser;
         final uid = user!.uid;
-        final userDoc = await FirebaseFirestore.instance.collection('user').doc(uid).get();
+        final userDoc =
+            await FirebaseFirestore.instance.collection('user').doc(uid).get();
         if (userDoc.exists) {
           final data = userDoc.data() as Map<String, dynamic>?;
           if (mounted) {
@@ -122,8 +131,12 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
           print('User document does not exist in database');
         }
 
-        final attendanceSnapshot = await FirebaseFirestore.instance.collection('Attendance').get();
-        final employeeNames = attendanceSnapshot.docs.map((doc) => doc['name'].toString()).toSet().toList();
+        final attendanceSnapshot =
+            await FirebaseFirestore.instance.collection('Attendance').get();
+        final employeeNames = attendanceSnapshot.docs
+            .map((doc) => doc['name'].toString())
+            .toSet()
+            .toList();
         if (mounted) {
           setState(() {
             employees = employeeNames;
@@ -138,7 +151,9 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
 
         if (mounted) {
           setState(() {
-            currentData = snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
+            currentData = snapshot.docs
+                .map((doc) => doc.data() as Map<String, dynamic>)
+                .toList();
             lastDocument = snapshot.docs.isNotEmpty ? snapshot.docs.last : null;
           });
         }
@@ -159,9 +174,13 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
         }
         print("Firestore Data stored in Hive");
       } catch (error) {
-
         print("Error fetching Firestore data: $error");
       }
+    }
+    if (mounted) {
+      setState(() {
+        isLoading = false;
+      });
     }
   }
 
@@ -188,18 +207,20 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
 
     baseQuery.get().then((snapshot) {
       setState(() {
-        currentData = snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
+        currentData = snapshot.docs
+            .map((doc) => doc.data() as Map<String, dynamic>)
+            .toList();
         searchResults = searchText.isNotEmpty
             ? currentData.where((data) {
-          final name = data['name'].toString().toLowerCase();
-          final date = data['Date'].toString().toLowerCase();
-          final login = data['Login'].toString().toLowerCase();
-          final logout = data['Logout'].toString().toLowerCase();
-          return name.contains(searchText) ||
-              date.contains(searchText) ||
-              login.contains(searchText) ||
-              logout.contains(searchText);
-        }).toList()
+                final name = data['name'].toString().toLowerCase();
+                final date = data['Date'].toString().toLowerCase();
+                final login = data['Login'].toString().toLowerCase();
+                final logout = data['Logout'].toString().toLowerCase();
+                return name.contains(searchText) ||
+                    date.contains(searchText) ||
+                    login.contains(searchText) ||
+                    logout.contains(searchText);
+              }).toList()
             : currentData;
         hasMoreData = snapshot.docs.length == itemsPerPage;
         lastDocument = snapshot.docs.isNotEmpty ? snapshot.docs.last : null;
@@ -231,7 +252,10 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
     baseQuery = baseQuery.orderBy('Date', descending: false);
     baseQuery.get().then((snapshot) {
       setState(() {
-        searchResults = snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList().where((data) {
+        searchResults = snapshot.docs
+            .map((doc) => doc.data() as Map<String, dynamic>)
+            .toList()
+            .where((data) {
           final name = data['name'].toString().toLowerCase();
           final date = data['Date'].toString().toLowerCase();
           final login = data['Login'].toString().toLowerCase();
@@ -249,7 +273,7 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
 
   void preprocessFirestoreData() async {
     final attendanceDocs =
-    await FirebaseFirestore.instance.collection('Attendance').get();
+        await FirebaseFirestore.instance.collection('Attendance').get();
     for (var doc in attendanceDocs.docs) {
       final name = doc['name'] as String;
       final login = doc['Login'] as String;
@@ -313,7 +337,7 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
                             children: [
                               SfDateRangePicker(
                                 selectionMode:
-                                DateRangePickerSelectionMode.range,
+                                    DateRangePickerSelectionMode.range,
                                 onSelectionChanged:
                                     (DateRangePickerSelectionChangedArgs args) {
                                   if (args.value is PickerDateRange) {
@@ -321,12 +345,12 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
                                     String formattedStartDate =
                                         "${range.startDate!.year}-${range.startDate!.month.toString().padLeft(2, '0')}-${range.startDate!.day.toString().padLeft(2, '0')}";
                                     String formattedEndDate = range.endDate !=
-                                        null
+                                            null
                                         ? "${range.endDate!.year}-${range.endDate!.month.toString().padLeft(2, '0')}-${range.endDate!.day.toString().padLeft(2, '0')}"
                                         : "";
                                     setState(() {
                                       tempSelectedDateRange = formattedEndDate
-                                          .isNotEmpty
+                                              .isNotEmpty
                                           ? "$formattedStartDate to $formattedEndDate"
                                           : formattedStartDate;
                                     });
@@ -338,43 +362,43 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
                       SizedBox(height: 16),
                       (role == "admin" || role == "teamlead")
                           ? Text(
-                        "Select an Employee",
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 16),
-                      )
+                              "Select an Employee",
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 16),
+                            )
                           : SizedBox(),
                       SizedBox(height: 8),
                       (role == "admin" || role == "teamlead")
                           ? DropdownSearch<String>.multiSelection(
-                        popupProps: PopupPropsMultiSelection.menu(
-                          showSearchBox: true,
-                          searchFieldProps: TextFieldProps(
-                            decoration: InputDecoration(
-                              hintText: "Search Employees",
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
+                              popupProps: PopupPropsMultiSelection.menu(
+                                showSearchBox: true,
+                                searchFieldProps: TextFieldProps(
+                                  decoration: InputDecoration(
+                                    hintText: "Search Employees",
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    contentPadding: EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 10),
+                                  ),
+                                ),
                               ),
-                              contentPadding: EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 10),
-                            ),
-                          ),
-                        ),
-                        items: (filter, infiniteScrollProps) => employees,
-                        selectedItems: tempSelectedEmployees ?? [],
-                        decoratorProps: DropDownDecoratorProps(
-                          decoration: InputDecoration(
-                            labelText: "Select Employees",
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
-                        onChanged: (List<String> selectedValues) {
-                          setState(() {
-                            tempSelectedEmployees = selectedValues;
-                          });
-                        },
-                      )
+                              items: (filter, infiniteScrollProps) => employees,
+                              selectedItems: tempSelectedEmployees ?? [],
+                              decoratorProps: DropDownDecoratorProps(
+                                decoration: InputDecoration(
+                                  labelText: "Select Employees",
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                              ),
+                              onChanged: (List<String> selectedValues) {
+                                setState(() {
+                                  tempSelectedEmployees = selectedValues;
+                                });
+                              },
+                            )
                           : SizedBox(),
                     ],
                   ),
@@ -428,6 +452,7 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
       },
     );
   }
+
   @override
   void dispose() {
     _scrollController.dispose();
@@ -438,6 +463,14 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: role == "employee"
+            ? IconButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                },
+                icon: Icon(Icons.arrow_back))
+            : SizedBox(),
+        automaticallyImplyLeading: false,
         title: Text(
           "Schedule and Attendance",
           style: TextStyle(fontWeight: FontWeight.bold),
@@ -451,7 +484,6 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
       ),
       body: Column(
         children: [
-
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: TextField(
@@ -477,57 +509,92 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
                   borderSide: BorderSide.none,
                 ),
                 contentPadding:
-                EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                    EdgeInsets.symmetric(horizontal: 20, vertical: 15),
               ),
             ),
           ),
           Expanded(
-            child: searchResults != null
-                ? (searchResults!.isEmpty
-                ? Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Image.asset(
-                  'assets/Noresult.png',
-                ),
-              ],
-            )
-                : ListView.builder(
-              controller: _scrollController,
-              itemCount:
-              searchResults!.length + (isLoadingMore ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (index < searchResults!.length) {
-                  final workDetail = searchResults![index];
-                  return buildCard(workDetail);
-                } else {
-                  return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: CircularProgressIndicator(),
-                      ));
-                }
-              },
-            ))
-                : ListView.builder(
-              controller: _scrollController,
-              itemCount: currentData.length + (isLoadingMore ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (index < currentData.length) {
-                  final workDetail = currentData[index];
-                  return buildCard(workDetail);
-                } else {
-                  return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: CircularProgressIndicator(),
-                      ));
-                }
-              },
-            ),
+            child: isLoading
+                ? _buildShimmerList()
+                : (searchResults != null && searchResults!.isEmpty) ||
+                        (searchResults == null && currentData.isEmpty)
+                    ? Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Image.asset(
+                            'assets/no-data.png',
+                            height: 150,
+                          ),
+                          SizedBox(height: 15),
+                          Text(
+                            "No Attendance Found",
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          )
+                        ],
+                      )
+                    : ListView.builder(
+                        controller: _scrollController,
+                        itemCount: (searchResults ?? currentData).length +
+                            (isLoadingMore ? 1 : 0),
+                        itemBuilder: (context, index) {
+                          final dataList = searchResults ?? currentData;
+                          if (index < dataList.length) {
+                            final workDetail = dataList[index];
+                            return buildCard(workDetail);
+                          } else {
+                            return Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: CircularProgressIndicator(),
+                              ),
+                            );
+                          }
+                        },
+                      ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Image.asset(
+            'assets/no-data.png',
+            height: 150,
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            "No leave records found",
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildShimmerList() {
+    return ListView.builder(
+      itemCount: 6,
+      itemBuilder: (context, index) {
+        return Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Shimmer.fromColors(
+            baseColor: Colors.grey[300]!,
+            highlightColor: Colors.grey[100]!,
+            child: Container(
+              height: 80,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -565,8 +632,8 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
               ),
               Row(
                 children: [
-                  Icon(
-                      Icons.calendar_today, size: 20, color: Colors.blueAccent),
+                  Icon(Icons.calendar_today,
+                      size: 20, color: Colors.blueAccent),
                   SizedBox(width: 8),
                   Text(
                     "Date: $date",
@@ -601,4 +668,5 @@ class _LoginLogoutScreenState extends State<LoginLogoutScreen1> {
         ),
       ),
     );
-  }}
+  }
+}

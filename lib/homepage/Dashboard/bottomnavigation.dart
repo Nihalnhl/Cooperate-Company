@@ -2,12 +2,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:loginpage/homepage/Drawer/Attendance.dart';
+
+import '../Drawer/Attendance.dart';
 import 'Attendancemark.dart';
 import 'Profile.dart';
-import 'bottomnavigation.dart';
 import 'homepage.dart';
- import 'package:loginpage/homepage/Dashboard/bottomnavigation.dart';
+
+
 
 class Bar extends StatefulWidget {
   const Bar({super.key});
@@ -57,7 +58,7 @@ class _BarState extends State<Bar> {
 
 
     return Scaffold(
-      body: role == 'employee' ?Obx(() => controller.Screens[controller.selectedIndex.value]):
+      body: role == 'employee' ? Obx(() => controller.Screens[controller.selectedIndex.value]):
       Obx(() => controller.Screen2[controller.selectedIndex.value]),
       bottomNavigationBar: Obx(
             () => Container(

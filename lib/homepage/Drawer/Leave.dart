@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:intl/intl.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:uuid/uuid.dart';
 import '../../Hive/leave_request_model.dart';
 
@@ -42,7 +43,7 @@ class _LeaveState extends State<Leave> {
   bool isOffline = false;
   final pendingStatusUpdatesBox =
       Hive.openBox<Map<String, dynamic>>('pendingStatusUpdatesBox');
-
+  bool isFetching = true;
   @override
   void initState() {
     super.initState();
@@ -197,6 +198,9 @@ class _LeaveState extends State<Leave> {
     } else {
       role = await getUserRole();
       loadOfflineData();
+      setState(() {
+        isFetching =false;
+      });
     }
   }
 
@@ -312,6 +316,9 @@ class _LeaveState extends State<Leave> {
   }
 
   void EmployeeQuery(String userId) async {
+    setState(() {
+      isFetching = true;
+    });
     try {
       final querySnapshot = await FirebaseFirestore.instance
           .collection('leave_records')
@@ -322,6 +329,7 @@ class _LeaveState extends State<Leave> {
 
       setState(() {
         currentData = querySnapshot.docs.map((doc) => doc.data()).toList();
+isFetching = false;
       });
     } catch (error) {
       print('Failed to fetch leave records for the employee: $error');
@@ -329,6 +337,9 @@ class _LeaveState extends State<Leave> {
   }
 
   void TeamLeadQuery(String userId) async {
+    setState(() {
+      isFetching = true;
+    });
     try {
       final querySnapshot = await FirebaseFirestore.instance
           .collection('leave_records')
@@ -337,6 +348,7 @@ class _LeaveState extends State<Leave> {
           .get();
       setState(() {
         currentData = querySnapshot.docs.map((doc) => doc.data()).toList();
+        isFetching = false;
       });
     } catch (error) {
       print('Failed to fetch leave requests: $error');
@@ -522,8 +534,9 @@ class _LeaveState extends State<Leave> {
       filteredData = filteredData.where((data) {
         final name = data['user_name'].toString().toLowerCase();
         final department = data['department'].toString().toLowerCase();
-        final reason = data['reason'].toString().toLowerCase();
+        // final reason = data['reason'].toString().toLowerCase();
         final type = data['leave_type'].toString().toLowerCase();
+        final Status = data['status'].toString().toLowerCase();
         final startDate = data['start_date'] != null
             ? (data['start_date'] is Timestamp
                 ? (data['start_date'] as Timestamp).toDate()
@@ -543,9 +556,9 @@ class _LeaveState extends State<Leave> {
 
         return name.contains(searchQuery.toLowerCase()) ||
             department.contains(searchQuery.toLowerCase()) ||
-            reason.contains(searchQuery.toLowerCase()) ||
-            type.contains(searchQuery.toLowerCase()) ||
-            (startDate != null &&
+            // reason.contains(searchQuery.toLowerCase()) ||
+            type.contains(searchQuery.toLowerCase()) ||  Status.contains(searchQuery.toLowerCase()) ||
+        (startDate != null &&
                 startDate
                     .toString()
                     .toLowerCase()
@@ -606,6 +619,7 @@ class _LeaveState extends State<Leave> {
   @override
   Widget build(BuildContext context) {
     final filteredData = getFilteredData();
+    bool isLoading = currentData.isEmpty;
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -647,7 +661,11 @@ class _LeaveState extends State<Leave> {
           Expanded(
             child: Stack(
               children: [
-                ListView.builder(
+                isFetching
+                    ? _buildShimmerList()
+                    : filteredData.isEmpty
+                    ? _buildEmptyState()
+                    : ListView.builder(
                   itemCount: filteredData.length,
                   itemBuilder: (context, index) {
                     filteredData.sort((a, b) {
@@ -755,8 +773,6 @@ class _LeaveState extends State<Leave> {
                                   ],
                                 ),
                               SizedBox(height: 6),
-
-                              // Leave Type & Status
                               Row(
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
@@ -1025,11 +1041,52 @@ class _LeaveState extends State<Leave> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: role == "employee" ?FloatingActionButton(
         backgroundColor: Colors.white,
         onPressed: showLeaveRequestDialog,
         child: Icon(Icons.add),
+      ):SizedBox(),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Image.asset(
+            'assets/no-data.png',
+            height: 150,
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            "No leave records found",
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _buildShimmerList() {
+    return ListView.builder(
+      itemCount: 6, // Number of shimmer items
+      itemBuilder: (context, index) {
+        return Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Shimmer.fromColors(
+            baseColor: Colors.grey[300]!,
+            highlightColor: Colors.grey[100]!,
+            child: Container(
+              height: 80,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -1077,7 +1134,6 @@ class _LeaveState extends State<Leave> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: Colors.grey.shade300,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(15),
           ),
@@ -1477,7 +1533,6 @@ class _LeaveState extends State<Leave> {
     if (role == null) {
       role = await getUserRole();
     }
-
     if (role == 'employee' ||
         role == "teamlead" ||
         (role == "teamlead" && leaveRequest['creator_role'] == "employee")) {
@@ -1485,7 +1540,6 @@ class _LeaveState extends State<Leave> {
         context: context,
         builder: (context) {
           return AlertDialog(
-            backgroundColor: Colors.grey.shade300,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
             ),

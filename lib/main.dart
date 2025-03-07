@@ -2,22 +2,28 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
+import 'package:get/get.dart';
+import 'package:get/get_core/src/get_main.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive/hive.dart';
 import 'package:hive_flutter/adapters.dart';
 import 'package:loginpage/Hive/user_profile.dart';
 import 'package:loginpage/Loginpage/wrap.dart';
 import 'package:loginpage/Splashscreen.dart';
+
 import 'Hive/attendance_model.dart';
 import 'Hive/company_model.dart';
 import 'Hive/leave_request_model.dart';
 import 'Hive/work_details_model.dart';
+import 'homepage/Dashboard/Attendancemark.dart';
+import 'homepage/Dashboard/bottomnavigation.dart';
 import 'homepage/Dashboard/profileedit.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
   await Hive.initFlutter();
+  Get.put(NavigationController());
   FirebaseFirestore.instance.settings = Settings(persistenceEnabled: true);
 
   if (!Hive.isAdapterRegistered(0)) {
@@ -56,7 +62,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: wrapper(),
+      home: SplashScreen(),
       builder: EasyLoading.init(),
       debugShowCheckedModeBanner: false,
     );

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -12,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../Hive/work_details_model.dart';
@@ -40,21 +40,23 @@ class _hmmState extends State<Workdetails2> {
   String selectedDepartment = 'All';
   DateTime? startDate;
   DateTimeRange? selectedDateRange;
-
+  bool isLoading = true;
 
   DateTime? endDate;
   bool isOnline = true;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-
+  bool isFetching = true;
   late Box<WorkDetails> workDetailsBox;
 
   void getData() async {
+    setState(() {
+      isFetching = true;
+    });
     final User? user = auth.currentUser;
     if (user == null) return;
     final uid = user.uid;
-    final docusnapshot = await FirebaseFirestore.instance.collection('user')
-        .doc(uid)
-        .get();
+    final docusnapshot =
+        await FirebaseFirestore.instance.collection('user').doc(uid).get();
     if (docusnapshot.exists && mounted) {
       final data = docusnapshot.data() as Map<String, dynamic>?;
       setState(() {
@@ -63,8 +65,8 @@ class _hmmState extends State<Workdetails2> {
     }
 
     final snapshot = await FirebaseFirestore.instance.collection('user').get();
-    final List<Map<String, String>> employeesWithRoles = snapshot.docs.map((
-        doc) {
+    final List<Map<String, String>> employeesWithRoles =
+        snapshot.docs.map((doc) {
       return {
         'name': doc['name'] as String,
         'role': doc['role'] as String,
@@ -77,24 +79,46 @@ class _hmmState extends State<Workdetails2> {
         employeeList = employeesWithRoles;
       });
     }
-
     var connectivityResult = await Connectivity().checkConnectivity();
     if (connectivityResult == ConnectivityResult.none) {
       fetchFromHive();
+      setState(() {
+        isFetching = false;
+      });
     } else {
-      final workDetailsSnapshot = await FirebaseFirestore.instance.collection(
-          'workDetails').get();
-      final fetchedWorkDetails = workDetailsSnapshot.docs
-          .map((doc) => doc.data() as Map<String, dynamic>)
-          .toList();
+      if (role == "employee") {
+        final workDetailsSnapshot = await FirebaseFirestore.instance
+            .collection('workDetails')
+            // .where(
+            // "AssignedtoUid", isEqualTo: FirebaseAuth.instance.currentUser?.uid)
+            .get();
+        final fetchedWorkDetails = workDetailsSnapshot.docs
+            .map((doc) => doc.data() as Map<String, dynamic>)
+            .toList();
 
-      if (mounted) {
-        setState(() {
-          workDetailsList = fetchedWorkDetails;
-          filteredDocs = applyFilters(fetchedWorkDetails);
-        });
+        if (mounted) {
+          setState(() {
+            workDetailsList = fetchedWorkDetails;
+            filteredDocs = applyFilters(fetchedWorkDetails);
+            isFetching = false;
+          });
+        }
+        syncFirestoreToHive(fetchedWorkDetails);
+      } else {
+        final workDetailsSnapshot =
+            await FirebaseFirestore.instance.collection('workDetails').get();
+        final fetchedWorkDetails = workDetailsSnapshot.docs
+            .map((doc) => doc.data() as Map<String, dynamic>)
+            .toList();
+        if (mounted) {
+          setState(() {
+            workDetailsList = fetchedWorkDetails;
+            filteredDocs = applyFilters(fetchedWorkDetails);
+            isFetching = false;
+          });
+        }
+        syncFirestoreToHive(fetchedWorkDetails);
       }
-      syncFirestoreToHive(fetchedWorkDetails);
     }
   }
 
@@ -110,8 +134,8 @@ class _hmmState extends State<Workdetails2> {
   }
 
   void fetchFromHive() {
-    final hiveData = workDetailsBox.values.map((workDetail) =>
-        workDetail.toMap()).toList();
+    final hiveData =
+        workDetailsBox.values.map((workDetail) => workDetail.toMap()).toList();
 
     if (!mounted) return;
 
@@ -121,7 +145,6 @@ class _hmmState extends State<Workdetails2> {
     });
     print("Data from Hive: $workDetailsList");
   }
-
 
   void syncFirestoreToHive(List<Map<String, dynamic>> firestoreData) async {
     await workDetailsBox.clear();
@@ -159,33 +182,33 @@ class _hmmState extends State<Workdetails2> {
 
       final deadline = workDetail['deadline'] != null
           ? (workDetail['deadline'] is Timestamp
-          ? (workDetail['deadline'] as Timestamp).toDate()
-          : workDetail['deadline'] as DateTime?)
+              ? (workDetail['deadline'] as Timestamp).toDate()
+              : workDetail['deadline'] as DateTime?)
           : null;
 
-      // Search query filtering
       final searchMatch = workTitle.contains(searchQuery.toLowerCase()) ||
           department.contains(searchQuery.toLowerCase()) ||
           status.contains(searchQuery.toLowerCase()) ||
           (deadline != null &&
-              DateFormat('yyyy-MM-dd').format(deadline).contains(searchQuery.toLowerCase()));
+              DateFormat('yyyy-MM-dd')
+                  .format(deadline)
+                  .contains(searchQuery.toLowerCase()));
 
-      // Status filtering
-      final statusMatch = selectedStatus == 'All' || status == selectedStatus.toLowerCase();
+      final statusMatch =
+          selectedStatus == 'All' || status == selectedStatus.toLowerCase();
 
-      // Department filtering
-      final departmentMatch = selectedDepartment == 'All' || department == selectedDepartment.toLowerCase();
+      final departmentMatch = selectedDepartment == 'All' ||
+          department == selectedDepartment.toLowerCase();
 
-      // Date range filtering
       final dateMatch = selectedDateRange == null ||
           (deadline != null &&
-              deadline.isAfter(selectedDateRange!.start.subtract(Duration(days: 1))) &&
+              deadline.isAfter(
+                  selectedDateRange!.start.subtract(Duration(days: 1))) &&
               deadline.isBefore(selectedDateRange!.end.add(Duration(days: 1))));
 
       return searchMatch && statusMatch && departmentMatch && dateMatch;
     }).toList();
   }
-
 
   void applyFiltersAndUpdate() {
     setState(() {
@@ -228,33 +251,53 @@ class _hmmState extends State<Workdetails2> {
 
     try {
       var connectivityResult = await Connectivity().checkConnectivity();
+
       if (connectivityResult == ConnectivityResult.none) {
         final workDetails = WorkDetails.fromMap(data);
         await workDetailsBox.put(workId, workDetails);
         setState(() {
           workDetailsList.add(workDetails.toMap());
           filteredDocs = applyFilters(workDetailsList);
-          fetchFromHive();
-          getData();
         });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Work detail saved offline. Will sync when online."),
+            backgroundColor: Colors.orange,
+          ),
+        );
       } else {
-        final workDetailsRef = FirebaseFirestore.instance.collection(
-            'workDetails');
-        if (workDetail != null) {
-          await workDetailsRef.doc(workId).update(data);
-        } else {
-          await workDetailsRef.doc(workId).set(data);
-        }
-        getData();
-        await syncHiveToFirestore();
-        syncFirestoreToHive(workDetailsList);
+        final workDetailsRef =
+            FirebaseFirestore.instance.collection('workDetails');
+        await Future.wait([
+          workDetail != null
+              ? workDetailsRef.doc(workId).update(data)
+              : workDetailsRef.doc(workId).set(data),
+          workDetailsBox.put(workId, WorkDetails.fromMap(data)),
+        ]);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(workDetail != null
+                ? "Work detail updated successfully!"
+                : "Work detail created successfully!"),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
+      getData();
     } catch (e) {
       print("Error saving work detail: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error saving work detail: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
+
     Navigator.pop(context);
   }
-
 
   Future<void> syncHiveToFirestore() async {
     final workDetailsRef = FirebaseFirestore.instance.collection('workDetails');
@@ -347,9 +390,9 @@ class _hmmState extends State<Workdetails2> {
 
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade300,
+      // backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        backgroundColor: Colors.grey.shade300,
+        // backgroundColor: Colors.grey[50],
         title: Text("Workdetails"),
         actions: [
           IconButton(
@@ -379,137 +422,205 @@ class _hmmState extends State<Workdetails2> {
                   borderSide: BorderSide.none,
                 ),
                 contentPadding:
-                EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                    EdgeInsets.symmetric(horizontal: 20, vertical: 15),
               ),
             ),
           ),
           Expanded(
-            child: ListView.builder(
-              itemCount: filteredDocs.length,
-              itemBuilder: (context, index) {
-                final workDetail = filteredDocs[index];
-                final workTitle = workDetail['title'];
-                final Startdate = workDetail['StartDate'];
-                final workDeadline = workDetail['deadline'];
-                final Department = workDetail['Department'];
-                final Status = workDetail['Status'];
-                final workId = workDetail['id'];
-                final progressUpdates =
-                    double.tryParse(workDetail['Progressupdates'].toString()) ??
-                        0;
-                final progress = progressUpdates > 1.0
-                    ? progressUpdates / 100
-                    : progressUpdates;
-                final formatdated = Startdate != null
-                    ? DateFormat("yyyy-MM-dd").format(
-                    Startdate is Timestamp ? Startdate.toDate() : Startdate)
-                    : "N/A";
+            child: isFetching
+                ? _buildShimmerList()
+                : filteredDocs.isEmpty
+                    ? _buildEmptyState()
+                    : ListView.builder(
+                        itemCount: filteredDocs.length,
+                        itemBuilder: (context, index) {
+                          final workDetail = filteredDocs[index];
+                          final workTitle = workDetail['title'];
+                          final Startdate = workDetail['StartDate'];
+                          final workDeadline = workDetail['deadline'];
+                          final Department = workDetail['Department'];
+                          final Status = workDetail['Status'];
+                          final workId = workDetail['id'];
+                          final progressUpdates = double.tryParse(
+                                  workDetail['Progressupdates'].toString()) ??
+                              0;
+                          final progress = progressUpdates > 1.0
+                              ? progressUpdates / 100
+                              : progressUpdates;
+                          final formatdated = Startdate != null
+                              ? DateFormat("yyyy-MM-dd").format(
+                                  Startdate is Timestamp
+                                      ? Startdate.toDate()
+                                      : Startdate)
+                              : "N/A";
 
-                final deadlineformat = workDeadline != null
-                    ? DateFormat("yyyy-MM-dd").format(workDeadline is Timestamp
-                    ? workDeadline.toDate()
-                    : workDeadline)
-                    : "N/A";
-                return Card(
-                  margin: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                  elevation: 5,
-                  child: ListTile(
-                    title: Center(
-                      child: Text(
-                        workTitle,
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(Department ?? ""),
-                        Text(
-                          "Deadline: $deadlineformat",
-                          style: TextStyle(fontSize: 12),
-                        ),
-                        Text(
-                          Status ?? "N/A",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Status.toLowerCase() == 'completed'
-                                ? Colors.green
-                                : Colors.red,
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        LinearProgressIndicator(
-                          value: progress,
-                          backgroundColor: Colors.grey[300],
-                          color: progress >= 1.0 ? Colors.green : Colors.red,
-                        ),
-                      ],
-                    ),
-                    trailing: role == 'teamlead' || role == 'admin'
-                        ? IconButton(
-                      icon: Icon(Icons.delete),
-                      onPressed: () async {
-                        bool isOnline = await checkInternetConnection();
-                        String workId = workDetail["id"];
-
-                        if (isOnline) {
-                          try {
-                            await _firestore
-                                .collection('workDetails')
-                                .doc(workId)
-                                .delete();
-                            await workDetailsBox.delete(workId);
-                          } catch (e) {
-                            print("Error deleting work detail: $e");
-                          }
-                        } else {
-                          await workDetailsBox.delete(workId);
-                          await queueDeletedData(workId);
-                        }
-                        getData();
-                        fetchFromHive();
-                      },
-                    )
-                        : null,
-                    onTap: () {
-                      role == "admin" || role == "teamlead"
-                          ? showWorkDetailDialog(
-                          workDetail: filteredDocs[index])
-                          : Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              Formview(
-                                title: workDetail['title'] ?? "N/A",
-                                Description:
-                                workDetail['description'] ?? "N/A",
-                                Assignedto: workDetail['AssignedTo'] ?? "N/A",
-                                StartDate: formatdated ?? 'N/A',
-                                Enddate: deadlineformat ?? 'N/A',
-                                ProgressUpdates:
-                                workDetail['Progressupdates'] ?? "N/A",
-                                Status: workDetail['Status'] ?? 'N/A',
-                                Priority: workDetail['Priority'] ?? "N/A",
-                                Department: workDetail['Department'] ?? "N/A",
+                          final deadlineformat = workDeadline != null
+                              ? DateFormat("yyyy-MM-dd").format(
+                                  workDeadline is Timestamp
+                                      ? workDeadline.toDate()
+                                      : workDeadline)
+                              : "N/A";
+                          return Card(
+                            margin: EdgeInsets.symmetric(
+                                vertical: 8, horizontal: 12),
+                            elevation: 5,
+                            child: ListTile(
+                              title: Center(
+                                child: Text(
+                                  workTitle,
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
                               ),
-                        ),
-                      );
-                    },
-                  ),
-                );
-              },
-            ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(Department ?? ""),
+                                  Text(
+                                    "Deadline: $deadlineformat",
+                                    style: TextStyle(fontSize: 12),
+                                  ),
+                                  Text(
+                                    Status ?? "N/A",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Status.toLowerCase() == 'completed'
+                                          ? Colors.green
+                                          : Colors.red,
+                                    ),
+                                  ),
+                                  SizedBox(height: 8),
+                                  LinearProgressIndicator(
+                                    value: progress,
+                                    backgroundColor: Colors.grey[300],
+                                    color: progress >= 1.0
+                                        ? Colors.green
+                                        : Colors.red,
+                                  ),
+                                ],
+                              ),
+                              trailing: role == 'teamlead' || role == 'admin'
+                                  ? IconButton(
+                                      icon: Icon(Icons.delete),
+                                      onPressed: () async {
+                                        bool isOnline =
+                                            await checkInternetConnection();
+                                        String workId = workDetail["id"];
+
+                                        if (isOnline) {
+                                          try {
+                                            await _firestore
+                                                .collection('workDetails')
+                                                .doc(workId)
+                                                .delete();
+                                            await workDetailsBox.delete(workId);
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                    'Leave request deleted !'),
+                                                backgroundColor: Colors.green,
+                                              ),
+                                            );
+                                          } catch (e) {
+                                            print(
+                                                "Error deleting work detail: $e");
+                                          }
+                                        } else {
+                                          await workDetailsBox.delete(workId);
+                                          await queueDeletedData(workId);
+                                        }
+                                        getData();
+                                        fetchFromHive();
+                                      },
+                                    )
+                                  : null,
+                              onTap: () {
+                                role == "admin" || role == "teamlead"
+                                    ? showWorkDetailDialog(
+                                        workDetail: filteredDocs[index])
+                                    : Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => Formview(
+                                            title: workDetail['title'] ?? "N/A",
+                                            Description:
+                                                workDetail['description'] ??
+                                                    "N/A",
+                                            Assignedto:
+                                                workDetail['AssignedTo'] ??
+                                                    "N/A",
+                                            StartDate: formatdated ?? 'N/A',
+                                            Enddate: deadlineformat ?? 'N/A',
+                                            ProgressUpdates:
+                                                workDetail['Progressupdates'] ??
+                                                    "N/A",
+                                            Status:
+                                                workDetail['Status'] ?? 'N/A',
+                                            Priority:
+                                                workDetail['Priority'] ?? "N/A",
+                                            Department:
+                                                workDetail['Department'] ??
+                                                    "N/A",
+                                          ),
+                                        ),
+                                      );
+                              },
+                            ),
+                          );
+                        },
+                      ),
           ),
         ],
       ),
       floatingActionButton: role == "admin" || role == "teamlead"
           ? FloatingActionButton(
-        onPressed: () {
-          showWorkDetailDialog();
-        },
-        child: Icon(Icons.add),
-      )
+              onPressed: () {
+                showWorkDetailDialog();
+              },
+              child: Icon(Icons.add),
+            )
           : SizedBox(),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Image.asset(
+            'assets/no-data.png',
+            height: 150,
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            "No Work Details found",
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildShimmerList() {
+    return ListView.builder(
+      itemCount: 6,
+      itemBuilder: (context, index) {
+        return Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Shimmer.fromColors(
+            baseColor: Colors.grey[300]!,
+            highlightColor: Colors.grey[100]!,
+            child: Container(
+              height: 80,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -528,380 +639,357 @@ class _hmmState extends State<Workdetails2> {
     initializeWorkDetail(workDetail);
     showDialog(
       context: context,
-      builder: (context) =>
-          Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(15),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: SingleChildScrollView(
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        workDetail == null
-                            ? "Add Work Detail"
-                            : "Update Work Detail",
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(15),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: SingleChildScrollView(
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    workDetail == null
+                        ? "Add Work Detail"
+                        : "Update Work Detail",
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  _buildTextField(
+                    controller: titleController,
+                    label: "Title",
+                    hint: "Enter the work title",
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Title is required.';
+                      }
+                      return null;
+                    },
+                  ),
+                  _buildTextField(
+                    controller: descriptionController,
+                    label: "Description",
+                    hint: "Enter a brief description",
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Description is required.';
+                      }
+                      return null;
+                    },
+                  ),
+                  SizedBox(
+                    height: 4,
+                  ),
+                  DropdownButtonFormField<String>(
+                    value: departmentController.text.isNotEmpty
+                        ? departmentController.text
+                        : null,
+                    decoration: InputDecoration(
+                      labelText: "Department",
+                      labelStyle: TextStyle(
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
                       ),
-                      const SizedBox(height: 20),
-                      _buildTextField(
-                        controller: titleController,
-                        label: "Title",
-                        hint: "Enter the work title",
-                        validator: (value) {
-                          if (value == null || value
-                              .trim()
-                              .isEmpty) {
-                            return 'Title is required.';
-                          }
-                          return null;
-                        },
+                      hintStyle: TextStyle(
+                        color: Colors.grey[400],
                       ),
-                      _buildTextField(
-                        controller: descriptionController,
-                        label: "Description",
-                        hint: "Enter a brief description",
-                        validator: (value) {
-                          if (value == null || value
-                              .trim()
-                              .isEmpty) {
-                            return 'Description is required.';
-                          }
-                          return null;
-                        },
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide: BorderSide(color: Colors.grey[300]!),
                       ),
-                      SizedBox(
-                        height: 4,
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide: BorderSide(color: Colors.blue, width: 2),
                       ),
-                      DropdownButtonFormField<String>(
-                        value: departmentController.text.isNotEmpty
-                            ? departmentController.text
-                            : null,
-                        decoration: InputDecoration(
-                          labelText: "Department",
-                          labelStyle: TextStyle(
-                            color: Colors.grey[600],
-                            fontWeight: FontWeight.w500,
-                          ),
-                          hintStyle: TextStyle(
-                            color: Colors.grey[400],
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            borderSide: BorderSide(color: Colors.blue,
-                                width: 2),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            borderSide:
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide:
                             BorderSide(color: Colors.grey[300]!, width: 1),
-                          ),
-                          contentPadding:
+                      ),
+                      contentPadding:
                           EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-                          filled: true,
-                          fillColor: Colors.white,
-                          isDense: true,
-                        ),
-                        items: ["Software", "Finance", "Marketing", "Sales"]
-                            .map((department) =>
-                            DropdownMenuItem(
+                      filled: true,
+                      fillColor: Colors.white,
+                      isDense: true,
+                    ),
+                    items: ["Software", "Finance", "Marketing", "Sales"]
+                        .map((department) => DropdownMenuItem(
                               value: department,
                               child: Text(department),
                             ))
-                            .toList(),
-                        onChanged: (value) {
-                          departmentController.text = value!;
-                        },
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Department is required.';
-                          }
-                          return null;
-                        },
+                        .toList(),
+                    onChanged: (value) {
+                      departmentController.text = value!;
+                    },
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Department is required.';
+                      }
+                      return null;
+                    },
+                  ),
+                  SizedBox(
+                    height: 15,
+                  ),
+                  DropdownButtonFormField<String>(
+                    value: statusController.text.isNotEmpty
+                        ? statusController.text
+                        : null,
+                    decoration: InputDecoration(
+                      labelText: "Status",
+                      labelStyle: TextStyle(
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
                       ),
-                      SizedBox(
-                        height: 15,
+                      hintStyle: TextStyle(
+                        color: Colors.grey[400],
                       ),
-                      DropdownButtonFormField<String>(
-                        value: statusController.text.isNotEmpty
-                            ? statusController.text
-                            : null,
-                        decoration: InputDecoration(
-                          labelText: "Status",
-                          labelStyle: TextStyle(
-                            color: Colors.grey[600],
-                            fontWeight: FontWeight.w500,
-                          ),
-                          hintStyle: TextStyle(
-                            color: Colors.grey[400],
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            borderSide: BorderSide(color: Colors.blue,
-                                width: 2),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            borderSide:
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide: BorderSide(color: Colors.grey[300]!),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide: BorderSide(color: Colors.blue, width: 2),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide:
                             BorderSide(color: Colors.grey[300]!, width: 1),
-                          ),
-                          contentPadding:
+                      ),
+                      contentPadding:
                           EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-                          filled: true,
-                          fillColor: Colors.white,
-                          isDense: true,
-                        ),
-                        items: ["Pending", "Completed"]
-                            .map((status) =>
-                            DropdownMenuItem<String>(
+                      filled: true,
+                      fillColor: Colors.white,
+                      isDense: true,
+                    ),
+                    items: ["Pending", "Completed"]
+                        .map((status) => DropdownMenuItem<String>(
                               value: status,
                               child: Text(status),
                             ))
-                            .toList(),
-                        onChanged: (newValue) {
-                          if (newValue != null) {
-                            setState(() {
-                              statusController.text = newValue;
-                            });
-                          }
-                        },
-                        validator: (value) {
-                          if (value == null || value
-                              .trim()
-                              .isEmpty) {
-                            return 'Status is required.';
-                          }
-                          return null;
-                        },
-                      ),
-
-                      SizedBox(
-                        height: 15,
-                      ),
-                      DropdownButtonFormField<String>(
-                        value: ["High", "Medium", "Low"]
+                        .toList(),
+                    onChanged: (newValue) {
+                      if (newValue != null) {
+                        setState(() {
+                          statusController.text = newValue;
+                        });
+                      }
+                    },
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Status is required.';
+                      }
+                      return null;
+                    },
+                  ),
+                  SizedBox(
+                    height: 15,
+                  ),
+                  DropdownButtonFormField<String>(
+                    value: ["High", "Medium", "Low"]
                             .contains(priorityController.text)
-                            ? priorityController.text
-                            : null,
-                        // Ensure the value is valid
-                        decoration: InputDecoration(
-                          labelText: "Priority",
-                          labelStyle: TextStyle(
-                            color: Colors.grey[600],
-                            fontWeight: FontWeight.w500,
-                          ),
-                          hintStyle: TextStyle(
-                            color: Colors.grey[400],
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            borderSide: BorderSide(color: Colors.blue,
-                                width: 2),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            borderSide:
+                        ? priorityController.text
+                        : null,
+                    decoration: InputDecoration(
+                      labelText: "Priority",
+                      labelStyle: TextStyle(
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
+                      ),
+                      hintStyle: TextStyle(
+                        color: Colors.grey[400],
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide: BorderSide(color: Colors.grey[300]!),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide: BorderSide(color: Colors.blue, width: 2),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide:
                             BorderSide(color: Colors.grey[300]!, width: 1),
-                          ),
-                          contentPadding:
+                      ),
+                      contentPadding:
                           EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-                          filled: true,
-                          fillColor: Colors.white,
-                          isDense: true,
-                        ),
-                        items: ["High", "Medium", "Low"]
-                            .map((priority) =>
-                            DropdownMenuItem(
+                      filled: true,
+                      fillColor: Colors.white,
+                      isDense: true,
+                    ),
+                    items: ["High", "Medium", "Low"]
+                        .map((priority) => DropdownMenuItem(
                               value: priority,
                               child: Text(priority),
                             ))
-                            .toList(),
-                        onChanged: (value) {
-                          priorityController.text = value!;
-                        },
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Priority is required.';
-                          }
-                          return null;
-                        },
+                        .toList(),
+                    onChanged: (value) {
+                      priorityController.text = value!;
+                    },
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Priority is required.';
+                      }
+                      return null;
+                    },
+                  ),
+                  SizedBox(
+                    height: 4,
+                  ),
+                  _buildTextField(
+                    controller: progressController,
+                    label: "Progress Updates (%)",
+                    hint: "Enter the progress (0-100)",
+                    keyboardType: TextInputType.number,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Progress updates are required.';
+                      }
+                      final progress = double.tryParse(value);
+                      if (progress == null || progress < 0 || progress > 100) {
+                        return 'Enter a valid progress value between 0 and 100.';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 4),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: selectedEmployeeUid,
+                    items: employeeList.map((employee) {
+                      return DropdownMenuItem(
+                        value: employee['uid'],
+                        child: Text("${employee['name']}"),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        selectedEmployeeUid = value;
+                        selectedEmployeeName = employeeList.firstWhere(
+                          (employee) => employee['uid'] == value,
+                        )['name'];
+                      });
+                    },
+                    // validator: (value) {
+                    //   if (value == null || value.isEmpty) {
+                    //     return 'You must assign this work to an employee.';
+                    //   }
+                    //   return null;
+                    // },
+                    decoration: InputDecoration(
+                      labelText: "Assigned To",
+                      labelStyle: TextStyle(
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
                       ),
-                      SizedBox(
-                        height: 4,
+                      hintText: selectedEmployeeName ?? "Select an employee",
+                      hintStyle: TextStyle(
+                        color: Colors.grey[400],
                       ),
-                      _buildTextField(
-                        controller: progressController,
-                        label: "Progress Updates (%)",
-                        hint: "Enter the progress (0-100)",
-                        keyboardType: TextInputType.number,
-                        validator: (value) {
-                          if (value == null || value
-                              .trim()
-                              .isEmpty) {
-                            return 'Progress updates are required.';
-                          }
-                          final progress = double.tryParse(value);
-                          if (progress == null || progress < 0 ||
-                              progress > 100) {
-                            return 'Enter a valid progress value between 0 and 100.';
-                          }
-                          return null;
-                        },
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide: BorderSide(color: Colors.grey[300]!),
                       ),
-                      const SizedBox(height: 4),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide: BorderSide(color: Colors.blue, width: 2),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide:
+                            BorderSide(color: Colors.grey[300]!, width: 1),
+                      ),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                      filled: true,
+                      fillColor: Colors.white,
+                      isDense: true,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  DateSelector(
+                    label: "Start Date",
+                    initialDate: startDate,
+                    onDateSelected: (selectedDate) {
+                      setState(() {
+                        startDate = selectedDate;
 
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<String>(
-                        value: selectedEmployeeUid,
-                        items: employeeList.map((employee) {
-                          return DropdownMenuItem(
-                            value: employee['uid'],
-                            child: Text(
-                                "${employee['name']} (${employee['role']})"),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            selectedEmployeeUid = value;
-                            selectedEmployeeName = employeeList.firstWhere(
-                                  (employee) => employee['uid'] == value,
-                            )['name'];
-                          });
+                        // Reset deadline if it's before the new start date
+                        if (deadline != null &&
+                            deadline!.isBefore(startDate!)) {
+                          deadline = null;
+                        }
+                      });
+                    },
+                    validator: (value) {
+                      if (value == null) {
+                        return 'Start Date is required.';
+                      }
+                      return null;
+                    },
+                  ),
+                  SizedBox(height: 16),
+                  DateSelector(
+                    label: "Deadline",
+                    initialDate: deadline,
+                    onDateSelected: (selectedDate) {
+                      setState(() {
+                        deadline = selectedDate;
+                      });
+                    },
+                    validator: (value) {
+                      if (value == null) {
+                        return 'Deadline is required.';
+                      } else if (startDate != null &&
+                          value.isBefore(startDate!)) {
+                        return 'Deadline must be after the Start Date.';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 30),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pop(context);
                         },
-                        // validator: (value) {
-                        //   if (value == null || value.isEmpty) {
-                        //     return 'You must assign this work to an employee.';
-                        //   }
-                        //   return null;
-                        // },
-                        decoration: InputDecoration(
-                          labelText: "Assigned To",
-                          labelStyle: TextStyle(
-                            color: Colors.grey[600],
-                            fontWeight: FontWeight.w500,
-                          ),
-                          hintText: selectedEmployeeName ??
-                              "Select an employee",
-                          hintStyle: TextStyle(
-                            color: Colors.grey[400],
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            borderSide: BorderSide(color: Colors.blue,
-                                width: 2),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            borderSide: BorderSide(color: Colors.grey[300]!,
-                                width: 1),
-                          ),
-                          contentPadding: EdgeInsets.symmetric(
-                              horizontal: 18, vertical: 16),
-                          filled: true,
-                          fillColor: Colors.white,
-                          isDense: true,
+                        child: Text(
+                          "Cancel",
+                          style: TextStyle(color: Colors.black),
                         ),
                       ),
-
-                      const SizedBox(height: 14),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          _buildDateSelector(
-                            context,
-                            "Start Date",
-                            startDate,
-                                (selectedDate) {
-                              setState(() {
-                                startDate = selectedDate;
-                              });
-                            },
-                            validator: (value) {
-                              if (value == null) {
-                                return 'Start Date is required.';
-                              }
-                              return null;
-                            },
-                          ),
-                          _buildDateSelector(
-                            context,
-                            "Deadline",
-                            deadline,
-                                (selectedDate) {
-                              setState(() {
-                                deadline = selectedDate;
-                              });
-                            },
-                            validator: (value) {
-                              if (value == null) {
-                                return 'Deadline is required.';
-                              } else if (deadline != null &&
-                                  deadline!.isBefore(startDate!)) {
-                                return 'Deadline must be after the Start Date.';
-                              }
-                              return null;
-                            },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 30),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          TextButton(
-                            onPressed: () {
-                              Navigator.pop(context);
-                            },
-                            child: Text(
-                              "Cancel",
-                              style: TextStyle(color: Colors.black),
-                            ),
-                          ),
-                          ElevatedButton(
-                            onPressed: () async {
-                              if (_formKey.currentState!.validate()) {
-                                saveWorkDetail(workDetail: workDetail);
-                              }
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.black,
-                            ),
-                            child: Text(
-                              workDetail == null ? "Add" : "Update",
-                              style: TextStyle(color: Colors.white),
-                            ),
-                          ),
-                        ],
+                      ElevatedButton(
+                        onPressed: () async {
+                          if (_formKey.currentState!.validate()) {
+                            saveWorkDetail(workDetail: workDetail);
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.black,
+                        ),
+                        child: Text(
+                          workDetail == null ? "Add" : "Update",
+                          style: TextStyle(color: Colors.white),
+                        ),
                       ),
                     ],
                   ),
-                ),
+                ],
               ),
             ),
           ),
+        ),
+      ),
     );
   }
 
@@ -922,30 +1010,36 @@ class _hmmState extends State<Workdetails2> {
               ),
               content: SingleChildScrollView(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
+                  padding: const EdgeInsets.symmetric(
+                      vertical: 12.0, horizontal: 16.0),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Status Dropdown
-                      Text('Status', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      Text('Status',
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w600)),
                       SizedBox(height: 8),
                       DropdownButton<String>(
                         value: tempStatus,
-                        onChanged: (value) => setState(() => tempStatus = value!),
+                        onChanged: (value) =>
+                            setState(() => tempStatus = value!),
                         items: ['All', 'Completed', 'Pending']
                             .map((status) => DropdownMenuItem(
-                          value: status,
-                          child: Text(status, style: TextStyle(color: Colors.black)),
-                        ))
+                                  value: status,
+                                  child: Text(status,
+                                      style: TextStyle(color: Colors.black)),
+                                ))
                             .toList(),
                         isExpanded: true,
                         style: TextStyle(fontSize: 16),
                       ),
                       SizedBox(height: 16),
 
-                      // Department Selection (ChoiceChip)
-                      Text('Department', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      Text('Department',
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w600)),
                       SizedBox(height: 8),
                       Wrap(
                         spacing: 8.0,
@@ -962,7 +1056,9 @@ class _hmmState extends State<Workdetails2> {
                             selectedColor: Colors.blue,
                             backgroundColor: Colors.grey[200],
                             labelStyle: TextStyle(
-                              color: tempDepartment == department ? Colors.white : Colors.black,
+                              color: tempDepartment == department
+                                  ? Colors.white
+                                  : Colors.black,
                             ),
                           );
                         }).toList(),
@@ -970,11 +1066,14 @@ class _hmmState extends State<Workdetails2> {
                       SizedBox(height: 16),
 
                       // Date Range Picker
-                      Text('Select Date Range', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      Text('Select Date Range',
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w600)),
                       SizedBox(height: 8),
                       ElevatedButton(
                         onPressed: () async {
-                          DateTimeRange? pickedDateRange = await showDateRangePicker(
+                          DateTimeRange? pickedDateRange =
+                              await showDateRangePicker(
                             context: context,
                             firstDate: DateTime(2000),
                             lastDate: DateTime(2100),
@@ -1034,7 +1133,8 @@ class _hmmState extends State<Workdetails2> {
                     applyFiltersAndUpdate();
                     Navigator.pop(context);
                   },
-                  child: Text('Apply', style: TextStyle(fontSize: 16, color: Colors.white)),
+                  child: Text('Apply',
+                      style: TextStyle(fontSize: 16, color: Colors.white)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.black,
                     padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
@@ -1047,8 +1147,6 @@ class _hmmState extends State<Workdetails2> {
       },
     );
   }
-
-
 }
 
 class Formview extends StatelessWidget {
@@ -1336,70 +1434,94 @@ Widget _buildTextField({
   );
 }
 
-Widget _buildDateSelector(
-  BuildContext context,
-  String label,
-  DateTime? selectedDate,
-  Function(DateTime) onDateSelected, {
-  String? Function(DateTime?)? validator,
-}) {
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        label,
-        style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16),
-      ),
-      GestureDetector(
-        onTap: () async {
-          final DateTime? pickedDate = await showDatePicker(
-            context: context,
-            initialDate: selectedDate ?? DateTime.now(), // Show selected date
-            firstDate: DateTime.now(), // Disable past dates
-            lastDate: DateTime(2100),
-            initialEntryMode:
-                DatePickerEntryMode.calendarOnly, // Open calendar directly
-            helpText: "Select $label", // Show title
-            confirmText: "OK",
-            cancelText: "Cancel",
-          );
-          if (pickedDate != null) {
-            onDateSelected(pickedDate);
-          }
-        },
-        child: Container(
+class DateSelector extends StatefulWidget {
+  final String label;
+  final DateTime? initialDate;
+  final Function(DateTime) onDateSelected;
+  final String? Function(DateTime?)? validator;
 
-          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-          margin: EdgeInsets.only(top: 8),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border.all(color: Colors.grey[300]!, width: 1),
-            borderRadius: BorderRadius.circular(15),
-          ),
-          child: Text(
-            selectedDate != null
-                ? "${selectedDate.day}/${selectedDate.month}/${selectedDate.year}"
-                : "Select Date",
-            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-          ),
+  const DateSelector({
+    Key? key,
+    required this.label,
+    required this.initialDate,
+    required this.onDateSelected,
+    this.validator,
+  }) : super(key: key);
+
+  @override
+  _DateSelectorState createState() => _DateSelectorState();
+}
+
+class _DateSelectorState extends State<DateSelector> {
+  DateTime? selectedDate;
+
+  @override
+  void initState() {
+    super.initState();
+    selectedDate = widget.initialDate;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          widget.label,
+          style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16),
         ),
-      ),
-      if (validator != null)
-        Builder(
-          builder: (context) {
-            final errorText = validator(selectedDate);
-            if (errorText != null) {
-              return Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  errorText,
-                  style: TextStyle(color: Colors.red, fontSize: 12),
-                ),
-              );
+        GestureDetector(
+          onTap: () async {
+            final DateTime? pickedDate = await showDatePicker(
+              context: context,
+              initialDate: selectedDate ?? DateTime.now(),
+              firstDate: DateTime.now(),
+              lastDate: DateTime(2100),
+              initialEntryMode: DatePickerEntryMode.calendarOnly,
+              helpText: "Select ${widget.label}",
+              confirmText: "OK",
+              cancelText: "Cancel",
+            );
+            if (pickedDate != null) {
+              setState(() {
+                selectedDate = pickedDate;
+              });
+              widget.onDateSelected(pickedDate);
             }
-            return SizedBox.shrink();
           },
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            margin: EdgeInsets.only(top: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: Colors.grey[300]!, width: 1),
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: Text(
+              selectedDate != null
+                  ? "${selectedDate!.day}/${selectedDate!.month}/${selectedDate!.year}"
+                  : "Select Date",
+              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+            ),
+          ),
         ),
-    ],
-  );
+        if (widget.validator != null)
+          Builder(
+            builder: (context) {
+              final errorText = widget.validator!(selectedDate);
+              if (errorText != null) {
+                return Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    errorText,
+                    style: TextStyle(color: Colors.red, fontSize: 12),
+                  ),
+                );
+              }
+              return SizedBox.shrink();
+            },
+          ),
+      ],
+    );
+  }
 }

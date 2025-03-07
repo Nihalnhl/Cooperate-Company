@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shimmer/shimmer.dart';
 import '../../Hive/company_model.dart';
 
 
@@ -134,12 +135,31 @@ class _CompanydetailsState extends State<Companydetails> {
       }
     }
   }
-
-
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        body: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 40),
+              _buildShimmerBox(height: 20, width: 200),
+              const SizedBox(height: 20),
+              Center(child: _buildShimmerCircle(140)),
+              const SizedBox(height: 20),
+              _buildShimmerBox(height: 20, width: 250),
+              const SizedBox(height: 10),
+              _buildShimmerBox(height: 15, width: double.infinity),
+              const SizedBox(height: 10),
+              _buildShimmerBox(height: 15, width: double.infinity),
+              const SizedBox(height: 10),
+              _buildShimmerBox(height: 15, width: double.infinity),
+            ],
+          ),
+        ),
+      );
     }
 
     if (companyData == null) {
@@ -147,67 +167,66 @@ class _CompanydetailsState extends State<Companydetails> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade300,
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        backgroundColor: Colors.grey.shade300,
+        automaticallyImplyLeading: false,
+        backgroundColor: Colors.grey[50],
         title: const Text("Company Details", style: TextStyle(fontWeight: FontWeight.bold)),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
         actions: [
           if (isEdit)
             IconButton(
               icon: const Icon(Icons.save),
               onPressed: updateUser,
-            )
-          else if (role == 'admin')
-            IconButton(
-              icon: const Icon(Icons.edit),
-              onPressed: () => setState(() {
-                isEdit = true;
-                names.text = companyData!.name;
-                Email.text = companyData!.email;
-                Headqua.text = companyData!.headQua;
-                workinghours.text = companyData!.workingHours;
-                website.text = companyData!.website;
-                phone.text = companyData!.phone;
-                industry.text = companyData!.industry;
-              }),
             ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            const SizedBox(height: 15),
-            Center(
-              child: GestureDetector(
-                onTap: isEdit ? _pickImage : null,
-                child: CircleAvatar(
-                  backgroundColor: Colors.white,
-                  radius: 100,
-                  backgroundImage: selectedImage != null
-                      ? FileImage(selectedImage!)
-                      : (companyData!.url.isNotEmpty ? FileImage(File(companyData!.url)) : const AssetImage('assets/profile.jpeg')) as ImageProvider,
-                  child: selectedImage == null?  Icon(Icons.person, size: 50) : null,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              const SizedBox(height: 20),
+              Center(
+                child: GestureDetector(
+                  onTap: isEdit ? _pickImage : null,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: [Colors.brown[300]!, Colors.brown[100]!],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                    child: CircleAvatar(
+                      backgroundColor: Colors.white,
+                      radius: 70,
+                      backgroundImage: selectedImage != null
+                          ? FileImage(selectedImage!)
+                         : FileImage(File(companyData!.url)) as ImageProvider,
+                      child: selectedImage == null ? const Icon(Icons.image, size: 50,color: Colors.grey,) : null,
+                    ),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 20),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  color: Colors.grey.shade200,
+              const SizedBox(height: 15),
+              Text(
+                isEdit ? "Update Details:" : "Company  Information :",
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
                 ),
+              ),
+              const SizedBox(height: 10),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
                 child: Column(
                   children: _buildCompanyDetails(),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -216,52 +235,172 @@ class _CompanydetailsState extends State<Companydetails> {
   List<Widget> _buildCompanyDetails() {
     if (isEdit) {
       return [
-        _buildEditableListTile('Name', names, Icons.person),
-        _buildEditableListTile('Industry', industry, Icons.business),
-        _buildEditableListTile('Headquarters', Headqua, Icons.location_city),
-        _buildEditableListTile('Email', Email, Icons.email),
-        _buildEditableListTile('Working Hours', workinghours, Icons.timer),
-        _buildEditableListTile('Website', website, Icons.web),
-        _buildEditableListTile('Phone', phone, Icons.phone),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withOpacity(0.1),
+                spreadRadius: 2,
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              _buildTextField('Name', names, Icons.person),  const SizedBox(height: 20),
+              _buildTextField('Industry', industry, Icons.business),  const SizedBox(height: 20),
+              _buildTextField('Headquarters', Headqua, Icons.location_city),  const SizedBox(height: 20),
+              _buildTextField('Email', Email, Icons.email),  const SizedBox(height: 20),
+              _buildTextField('Working Hours', workinghours, Icons.timer),  const SizedBox(height: 20),
+              _buildTextField('Website', website, Icons.web),  const SizedBox(height: 20),
+              _buildTextField('Phone', phone, Icons.phone),  const SizedBox(height: 20),
+            ],
+          ),
+        )
+
       ];
     } else {
       return [
-        _buildReadOnlyListTile('Name:', companyData!.name, Icons.person),
-        _buildReadOnlyListTile('Industry:', companyData!.industry, Icons.business),
-        _buildReadOnlyListTile('Headquarters:', companyData!.headQua, Icons.location_city),
-        _buildReadOnlyListTile('Email:', companyData!.email, Icons.email),
-        _buildReadOnlyListTile('Working Hours:', companyData!.workingHours, Icons.timer),
-        _buildReadOnlyListTile('Website:', companyData!.website, Icons.web),
-        _buildReadOnlyListTile('Phone:', companyData!.phone, Icons.phone),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withOpacity(0.1),
+                spreadRadius: 2,
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              _buildDetailTile('Name:', companyData!.name, Icons.person),
+              const SizedBox(height: 16),
+              _buildDetailTile ('Industry:', companyData!.industry, Icons.business),
+              const SizedBox(height: 16),
+              _buildDetailTile('Headquarters:', companyData!.headQua, Icons.location_city),const SizedBox(height: 16),
+              _buildDetailTile('Email:', companyData!.email, Icons.email),const SizedBox(height: 16),
+              _buildDetailTile('Working Hours:', companyData!.workingHours, Icons.timer),const SizedBox(height: 16),
+              _buildDetailTile('Website:', companyData!.website, Icons.web),const SizedBox(height: 16),
+              _buildDetailTile('Phone:', companyData!.phone, Icons.phone),const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerRight,
+                child: role == "admin" ?ElevatedButton.icon(
+                  onPressed: () => setState(() {
+                    isEdit = true;
+                    names.text = companyData!.name;
+                    Email.text = companyData!.email;
+                    Headqua.text = companyData!.headQua;
+                    workinghours.text = companyData!.workingHours;
+                    website.text = companyData!.website;
+                    phone.text = companyData!.phone;
+                    industry.text = companyData!.industry;
+                  }),
+                  icon: const Icon(Icons.edit, size: 18),
+                  label: const Text("Edit"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.brown[400],
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ): SizedBox(),
+              ),
+            ],
+          ),
+        )
+
       ];
     }
   }
-
-  Widget _buildEditableListTile(String title, TextEditingController controller, IconData icon) {
-    return Column(
-      children: [
-        ListTile(
-          leading: Icon(icon),
-          title: Text(title,style: TextStyle(fontWeight: FontWeight.bold),),
-          subtitle: TextField(
-            controller: controller,
-            decoration: InputDecoration(hintText: 'Enter $title'),
-          ),
+  Widget _buildShimmerBox({required double height, required double width}) {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[300]!,
+      highlightColor: Colors.grey[100]!,
+      child: Container(
+        height: height,
+        width: width,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
         ),
-        const Divider(),
-      ],
+      ),
     );
   }
 
-  Widget _buildReadOnlyListTile(String title, String value, IconData icon) {
-    return Column(
-      children: [
-        ListTile(
-          leading: Icon(icon),
-          title: Text(title),
-          subtitle: Text(value.isNotEmpty ? value : 'Not available'),
+  Widget _buildShimmerCircle(double size) {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[300]!,
+      highlightColor: Colors.grey[100]!,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
         ),
-        const Divider(),
+      ),
+    );
+  }
+
+  Widget _buildTextField(String title,TextEditingController controller,  IconData icon,
+      {TextInputType? type}) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: type,
+      decoration: InputDecoration(
+        prefixIcon: Icon(icon, color: Colors.brown[400]),
+        labelText: title,
+        labelStyle: TextStyle(color: Colors.grey[700]),
+        filled: true,
+        fillColor: Colors.grey[100],
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.blue[400]!, width: 2),
+        ),
+      ),
+      validator: (value) =>
+      value?.isEmpty == true ? 'Please enter your $title' : null,
+    );
+  }
+
+  Widget _buildDetailTile(String title, String? subtitle, IconData icon) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: Colors.brown[400], size: 24),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[700],
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle ?? "Not provided",
+                style: const TextStyle(fontSize: 16),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }

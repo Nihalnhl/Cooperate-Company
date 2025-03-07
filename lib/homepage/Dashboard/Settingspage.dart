@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:loginpage/homepage/Dashboard/Worktime.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../Loginpage/loginpage.dart';
@@ -20,7 +21,7 @@ class _SettingspageState extends State<Settingspage> {
   final FirebaseAuth auth = FirebaseAuth.instance;
   String? role;
   String userid = '';
-
+  final FlutterSecureStorage storage = FlutterSecureStorage();
   Future<void> signout() async {
     final connectivityResult = await Connectivity().checkConnectivity();
     if (connectivityResult == ConnectivityResult.none) {
@@ -36,8 +37,11 @@ class _SettingspageState extends State<Settingspage> {
 
     try {
       await FirebaseAuth.instance.signOut();
+      // await storage.delete(key: 'email');
+      // await storage.delete(key: 'password');
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('profileImagePath');
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => BiometricLoginPage()),
